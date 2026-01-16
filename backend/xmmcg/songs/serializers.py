@@ -140,3 +140,41 @@ class SongUpdateSerializer(serializers.ModelSerializer):
         if not is_valid:
             raise serializers.ValidationError(error_msg)
         return value
+
+
+# ==================== 竞标相关序列化器 ====================
+
+from .models import Bid, BidResult, BiddingRound
+
+
+class BiddingRoundSerializer(serializers.ModelSerializer):
+    """竞标轮次序列化器"""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = BiddingRound
+        fields = ('id', 'name', 'status', 'status_display', 'created_at', 'started_at', 'completed_at')
+        read_only_fields = ('id', 'created_at')
+
+
+class BidSerializer(serializers.ModelSerializer):
+    """竞标序列化器"""
+    song = SongListSerializer(read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    
+    class Meta:
+        model = Bid
+        fields = ('id', 'username', 'song', 'amount', 'is_dropped', 'created_at')
+        read_only_fields = ('id', 'username', 'is_dropped', 'created_at')
+
+
+class BidResultSerializer(serializers.ModelSerializer):
+    """竞标结果序列化器"""
+    song = SongListSerializer(read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    allocation_type_display = serializers.CharField(source='get_allocation_type_display', read_only=True)
+    
+    class Meta:
+        model = BidResult
+        fields = ('id', 'username', 'song', 'bid_amount', 'allocation_type', 'allocation_type_display', 'allocated_at')
+        read_only_fields = ('id', 'username', 'allocated_at')
