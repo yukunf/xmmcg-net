@@ -15,6 +15,7 @@ from .serializers import (
     BannerSerializer,
     AnnouncementSerializer,
     CompetitionPhaseSerializer,
+    BidSerializer,
 )
 from .bidding_service import BiddingService
 
@@ -491,13 +492,8 @@ def user_bids_root(request):
             user=user
         ).select_related('song').order_by('-amount')
         
-        bids_data = [{
-            'id': bid.id,
-            'song': SongListSerializer(bid.song).data,
-            'amount': bid.amount,
-            'is_dropped': bid.is_dropped,
-            'created_at': bid.created_at,
-        } for bid in bids]
+        # 使用序列化器以包含 status 字段
+        bids_data = BidSerializer(bids, many=True).data
         
         return Response({
             'success': True,
