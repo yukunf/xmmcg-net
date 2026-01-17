@@ -9,7 +9,7 @@ from django.db.models import Sum
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import Bid, BidResult, BiddingRound, Song, MAX_SONGS_PER_USER
+from .models import Bid, BidResult, BiddingRound, Song, MAX_SONGS_PER_USER, RANDOM_ALLOCATION_COST
 from users.models import UserProfile
 
 
@@ -53,11 +53,26 @@ class BiddingService:
         # 清空之前的分配结果（如果有重新分配）
         BidResult.objects.filter(bidding_round=bidding_round).delete()
         
-        # 获取所有有效竞标，按出价从高到低、时间从早到晚（同价格按先来先得）
-        all_bids = Bid.objects.filter(
+        # 获取所有有效竞标
+        all_bids = list(Bid.objects.filter(
             bidding_round=bidding_round,
             is_dropped=False
-        ).select_related('user', 'song').order_by('-amount', 'created_at')
+        ).select_related('user', 'song'))
+        
+        # 按出价从高到低排序，同价格随机打乱
+        from collections import defaultdict
+        bids_by_amount = defaultdict(list)
+        for bid in all_bids:
+            bids_by_amount[bid.amount].append(bid)
+        
+        # 对每个价格组内随机打乱
+        sorted_bids = []
+        for amount in sorted(bids_by_amount.keys(), reverse=True):
+            group = bids_by_amount[amount]
+            random.shuffle(group)  # 同价格随机排序
+            sorted_bids.extend(group)
+        
+        all_bids = sorted_bids
         
         # 追踪已分配的歌曲和用户
         allocated_songs = set()  # 已分配的歌曲ID集合
@@ -91,7 +106,7 @@ class BiddingService:
         # 获取未被分配的歌曲
         unallocated_songs = list(all_song_ids - allocated_songs)
         
-        # 第二阶段：对于未获得任何歌曲的用户，随机分配
+        # 第二阶段：对于未获得任何歌曲的用户，随机分配（需扣除保底代币）
         # 获取参与竞标的所有用户
         bidding_users = set(bid.user.id for bid in all_bids)
         
@@ -108,7 +123,7 @@ class BiddingService:
                         bidding_round=bidding_round,
                         user=user,
                         song_id=random_song_id,
-                        bid_amount=0,  # 随机分配没有出价金额
+                        bid_amount=RANDOM_ALLOCATION_COST,  # 保底分配需要支付代币
                         allocation_type='random'
                     )
                     allocated_songs.add(random_song_id)
@@ -229,10 +244,9 @@ class BiddingService:
         except BiddingRound.DoesNotExist:
             raise ValidationError('竞标轮次不存在')
         
-        # 获取该轮次的所有分配结果
+        # 获取该轮次的所有分配结果（包括竞价和随机分配）
         results = BidResult.objects.filter(
-            bidding_round=bidding_round,
-            allocation_type='win'  # 只处理中标的用户
+            bidding_round=bidding_round
         ).select_related('user', 'song')
         
         total_deducted = 0

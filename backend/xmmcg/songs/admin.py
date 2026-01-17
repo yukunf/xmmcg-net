@@ -65,15 +65,15 @@ class AnnouncementAdmin(admin.ModelAdmin):
 
 @admin.register(CompetitionPhase)
 class CompetitionPhaseAdmin(admin.ModelAdmin):
-    list_display = ('name', 'phase_key', 'status', 'start_time', 'end_time', 'order', 'is_active')
-    list_filter = ('is_active', 'start_time', 'created_at')
+    list_display = ('name', 'phase_key', 'submissions_type', 'status', 'start_time', 'end_time', 'order', 'is_active')
+    list_filter = ('is_active', 'submissions_type', 'start_time', 'created_at')
     ordering = ('order', 'start_time')
     search_fields = ('name', 'phase_key', 'description')
     readonly_fields = ('created_at', 'updated_at')
     
     fieldsets = (
         ('基本信息', {
-            'fields': ('name', 'phase_key', 'description')
+            'fields': ('name', 'phase_key', 'description', 'submissions_type')
         }),
         ('时间配置', {
             'fields': ('start_time', 'end_time', 'order')
@@ -98,6 +98,47 @@ class BiddingRoundAdmin(admin.ModelAdmin):
     list_filter = ('status', 'created_at')
     ordering = ('-created_at',)
     search_fields = ('name',)
+    actions = ['allocate_bids_action']
+    
+    @admin.action(description='分配选中的竞标轮次')
+    def allocate_bids_action(self, request, queryset):
+        """
+        自定义管理员操作：批量分配选中的竞标轮次
+        """
+        from .bidding_service import BiddingService
+        from django.contrib import messages
+        
+        success_count = 0
+        error_messages = []
+        
+        for bidding_round in queryset:
+            try:
+                # 检查轮次是否已完成
+                if bidding_round.status == 'completed':
+                    error_messages.append(f'{bidding_round.name} 已经分配过，无法重复分配')
+                    continue
+                
+                # 执行分配
+                BiddingService.allocate_bids(bidding_round.id)
+                success_count += 1
+                
+            except Exception as e:
+                error_messages.append(f'{bidding_round.name} 分配失败: {str(e)}')
+        
+        # 显示结果消息
+        if success_count > 0:
+            self.message_user(
+                request,
+                f'成功分配 {success_count} 个竞标轮次',
+                level=messages.SUCCESS
+            )
+        
+        if error_messages:
+            self.message_user(
+                request,
+                '\n'.join(error_messages),
+                level=messages.WARNING
+            )
     readonly_fields = ('created_at',)
     
     fieldsets = (

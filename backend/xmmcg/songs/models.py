@@ -10,6 +10,9 @@ MAX_SONGS_PER_USER = 2
 # 每个用户可以竞标的歌曲数量限制
 MAX_BIDS_PER_USER = 5
 
+# 保底分配需要扣除的代币数量
+RANDOM_ALLOCATION_COST = 200
+
 # 互评系统常量
 PEER_REVIEW_TASKS_PER_USER = 8  # 每个用户需要完成的评分任务数
 PEER_REVIEW_MAX_SCORE = 50      # 互评满分（可通过settings配置覆盖）
@@ -70,6 +73,12 @@ class Announcement(models.Model):
 class CompetitionPhase(models.Model):
     """比赛阶段管理模型（用于时间控制和权限管理）"""
     
+    # 统计类型选择
+    SUBMISSIONS_TYPE_CHOICES = [
+        ('songs', '歌曲数'),
+        ('charts', '谱面数'),
+    ]
+    
     # 阶段信息
     name = models.CharField(max_length=100, help_text='阶段名称，如"竞标期"、"制谱期"')
     phase_key = models.CharField(
@@ -78,6 +87,14 @@ class CompetitionPhase(models.Model):
         help_text='唯一标识符，用于权限绑定。如 bidding、mapping、peer_review'
     )
     description = models.TextField(help_text='阶段描述，显示在主页时间轴')
+    
+    # 统计类型配置
+    submissions_type = models.CharField(
+        max_length=20,
+        choices=SUBMISSIONS_TYPE_CHOICES,
+        default='songs',
+        help_text='该阶段统计的作品类型（显示在首页）'
+    )
     
     # 时间设置
     start_time = models.DateTimeField(help_text='阶段开始时间')

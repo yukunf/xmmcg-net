@@ -77,27 +77,19 @@ def get_competition_status(request):
         status_val = 'active'
         status_text = '进行中'
     
-    # 根据阶段类型计算参与人数和提交作品数
-    phase_key = current_phase.phase_key
-    
     # 计算参与人数（全局统计）
     total_participants = Bid.objects.values('user_id').distinct().count()
     
-    # 根据阶段类型计算提交作品数
-    if 'bidding' in phase_key:
-        # 竞标阶段：统计歌曲数
+    # 根据阶段的 submissions_type 字段计算提交作品数
+    if current_phase.submissions_type == 'songs':
+        # 统计歌曲数
         submissions_count = Song.objects.count()
         submissions_label = '歌曲数'
-    elif 'mapping' in phase_key or 'chart' in phase_key:
-        # 制谱阶段：统计谱面数
+    elif current_phase.submissions_type == 'charts':
+        # 统计谱面数
         from .models import Chart
         submissions_count = Chart.objects.count()
         submissions_label = '谱面数'
-    elif 'peer_review' in phase_key or 'review' in phase_key:
-        # 互评阶段：统计已提交的谱面数
-        from .models import Chart
-        submissions_count = Chart.objects.filter(status='submitted').count()
-        submissions_label = '待评谱面数'
     else:
         # 其他阶段：默认统计歌曲数
         submissions_count = Song.objects.count()
