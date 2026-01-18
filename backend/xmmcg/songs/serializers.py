@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Song, Banner, Announcement, CompetitionPhase
@@ -167,15 +168,29 @@ class BiddingRoundSerializer(serializers.ModelSerializer):
 
 
 class BidSerializer(serializers.ModelSerializer):
-    """竞标序列化器"""
+    """竞标序列化器（支持歌曲和谱面）"""
     song = SongListSerializer(read_only=True)
+    chart = serializers.SerializerMethodField()
     username = serializers.CharField(source='user.username', read_only=True)
     status = serializers.SerializerMethodField()
+    bid_type_display = serializers.CharField(source='get_bid_type_display', read_only=True)
     
     class Meta:
         model = Bid
-        fields = ('id', 'username', 'song', 'amount', 'is_dropped', 'status', 'created_at')
+        fields = ('id', 'username', 'bid_type', 'bid_type_display', 'song', 'chart', 'amount', 'is_dropped', 'status', 'created_at')
         read_only_fields = ('id', 'username', 'is_dropped', 'created_at')
+    
+    def get_chart(self, obj):
+        """获取谱面信息（仅当bid_type=chart时）"""
+        if obj.chart:
+            return {
+                'id': obj.chart.id,
+                'song_title': obj.chart.song.title,
+                'creator_username': obj.chart.user.username,
+                'average_score': obj.chart.average_score,
+                'created_at': obj.chart.created_at
+            }
+        return None
     
     def get_status(self, obj):
         """
@@ -197,26 +212,42 @@ class BidSerializer(serializers.ModelSerializer):
         ).first()
         
         if result:
-            # 检查是否是这个竞标对应的歌曲
-            if result.song_id == obj.song_id:
-                return 'won'  # 中选了这首歌
-            else:
-                return 'lost'  # 中选了其他歌，这个落选
+            # 检查是否是这个竞标对应的目标（歌曲或谱面）
+            if obj.bid_type == 'song' and result.song_id == obj.song_id:
+                return 'won'
+            elif obj.bid_type == 'chart' and result.chart_id == obj.chart_id:
+                return 'won'
         
-        # 已dropped或未中选
-        return 'lost' if obj.is_dropped else 'bidding'
+        return 'lost'
 
 
 class BidResultSerializer(serializers.ModelSerializer):
-    """竞标结果序列化器"""
+    """竞标结果序列化器（支持歌曲和谱面）"""
     song = SongListSerializer(read_only=True)
+    chart = serializers.SerializerMethodField()
     username = serializers.CharField(source='user.username', read_only=True)
     allocation_type_display = serializers.CharField(source='get_allocation_type_display', read_only=True)
+    bid_type_display = serializers.CharField(source='get_bid_type_display', read_only=True)
     
     class Meta:
         model = BidResult
-        fields = ('id', 'username', 'song', 'bid_amount', 'allocation_type', 'allocation_type_display', 'allocated_at')
-        read_only_fields = ('id', 'username', 'allocated_at')
+        fields = (
+            'id', 'username', 'bid_type', 'bid_type_display', 'song', 'chart',
+            'bid_amount', 'allocation_type', 'allocation_type_display', 'allocated_at'
+        )
+        read_only_fields = fields
+    
+    def get_chart(self, obj):
+        """获取谱面信息（仅当bid_type=chart时）"""
+        if obj.chart:
+            return {
+                'id': obj.chart.id,
+                'song_title': obj.chart.song.title,
+                'creator_username': obj.chart.user.username,
+                'average_score': obj.chart.average_score,
+                'created_at': obj.chart.created_at
+            }
+        return None
 
 
 # ==================== 谱面和互评相关序列化器 ====================
@@ -229,18 +260,42 @@ class ChartSerializer(serializers.ModelSerializer):
     song = SongListSerializer(read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    chart_file_url = serializers.SerializerMethodField()
+    audio_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
+    designer = serializers.CharField(read_only=True)
     
     class Meta:
         model = Chart
         fields = (
-            'id', 'username', 'song', 'status', 'status_display',
-            'chart_url', 'chart_id_external', 'review_count', 'average_score',
-            'created_at', 'submitted_at', 'review_completed_at'
+            'id', 'username', 'song', 'status', 'status_display', 'designer',
+            'audio_file', 'audio_url', 'cover_image', 'cover_url', 'chart_file', 'chart_file_url',
+            'review_count', 'average_score', 'created_at', 'submitted_at', 'review_completed_at'
         )
         read_only_fields = (
             'id', 'username', 'review_count', 'average_score',
             'created_at', 'submitted_at', 'review_completed_at'
         )
+    
+    def _build_url(self, request, field):
+        if field:
+            return request.build_absolute_uri(field.url) if request else field.url
+        return None
+
+    def get_chart_file_url(self, obj):
+        """获取谱面文件的完整URL"""
+        request = self.context.get('request')
+        return self._build_url(request, obj.chart_file)
+
+    def get_audio_url(self, obj):
+        """获取音频文件URL"""
+        request = self.context.get('request')
+        return self._build_url(request, obj.audio_file)
+
+    def get_cover_url(self, obj):
+        """获取封面文件URL"""
+        request = self.context.get('request')
+        return self._build_url(request, obj.cover_image)
 
 
 class ChartCreateSerializer(serializers.ModelSerializer):
@@ -248,36 +303,77 @@ class ChartCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Chart
-        fields = ('chart_url', 'chart_id_external')
+        fields = ('designer', 'audio_file', 'cover_image', 'chart_file')
         extra_kwargs = {
-            'chart_url': {'required': False},
-            'chart_id_external': {'required': False},
+            'designer': {'required': False},  # 从谱面文件解析
+            'audio_file': {'required': True},
+            'cover_image': {'required': True},
+            'chart_file': {'required': True},
         }
     
-    def validate(self, data):
-        """至少提供一个标识符"""
-        if not data.get('chart_url') and not data.get('chart_id_external'):
-            raise serializers.ValidationError(
-                '必须提供 chart_url 或 chart_id_external 中的至少一个'
-            )
-        return data
+    def validate_chart_file(self, value):
+        """验证谱面文件"""
+        # 验证文件名必须是maidata.txt
+        if value.name != 'maidata.txt':
+            raise serializers.ValidationError('谱面文件必须命名为 maidata.txt')
+        
+        # 验证文件大小（例如限制为1MB）
+        if value.size > 1 * 1024 * 1024:
+            raise serializers.ValidationError('谱面文件大小不能超过 1MB')
+        
+        return value
+
+    def validate_audio_file(self, value):
+        """验证音频文件（沿用歌曲校验规则）"""
+        is_valid, error_msg = validate_audio_file(value)
+        if not is_valid:
+            raise serializers.ValidationError(error_msg)
+        return value
+
+    def validate_cover_image(self, value):
+        """验证封面图片"""
+        is_valid, error_msg = validate_cover_image(value)
+        if not is_valid:
+            raise serializers.ValidationError(error_msg)
+        return value
+
+    def validate(self, attrs):
+        chart_file = attrs.get('chart_file')
+        if chart_file:
+            content = chart_file.read().decode('utf-8', errors='ignore')
+            match = re.search(r'^\s*&des=(.+)$', content, re.MULTILINE)
+            chart_file.seek(0)
+            if not match or not match.group(1).strip():
+                raise serializers.ValidationError({'chart_file': '请填写谱师名义'})
+            attrs['designer'] = match.group(1).strip()
+        else:
+            raise serializers.ValidationError({'chart_file': '谱面文件不能为空'})
+        return attrs
 
 
 class PeerReviewAllocationSerializer(serializers.ModelSerializer):
     """互评任务序列化器（用于获取待评分任务）"""
     chart_id = serializers.IntegerField(source='chart.id', read_only=True)
     song_title = serializers.CharField(source='chart.song.title', read_only=True)
-    chart_url = serializers.URLField(source='chart.chart_url', read_only=True, required=False)
-    chart_id_external = serializers.CharField(source='chart.chart_id_external', read_only=True, required=False)
+    chart_file_url = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
         model = PeerReviewAllocation
         fields = (
-            'id', 'chart_id', 'song_title', 'chart_url', 'chart_id_external',
+            'id', 'chart_id', 'song_title', 'chart_file_url',
             'status', 'status_display', 'allocated_at'
         )
         read_only_fields = fields
+    
+    def get_chart_file_url(self, obj):
+        """获取谱面文件的完整URL"""
+        if obj.chart.chart_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.chart.chart_file.url)
+            return obj.chart.chart_file.url
+        return None
 
 
 class PeerReviewSerializer(serializers.ModelSerializer):
@@ -315,16 +411,38 @@ class ChartDetailSerializer(serializers.ModelSerializer):
     song = SongListSerializer(read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    chart_file_url = serializers.SerializerMethodField()
+    audio_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
     
     class Meta:
         model = Chart
         fields = (
-            'id', 'username', 'song', 'status', 'status_display',
-            'chart_url', 'chart_id_external', 'review_count', 'total_score', 'average_score',
+            'id', 'username', 'song', 'status', 'status_display', 'designer',
+            'audio_file', 'audio_url', 'cover_image', 'cover_url', 'chart_file', 'chart_file_url',
+            'review_count', 'total_score', 'average_score',
             'reviews', 'created_at', 'submitted_at', 'review_completed_at'
         )
         read_only_fields = fields
+
+    def _build_url(self, request, field):
+        if field:
+            return request.build_absolute_uri(field.url) if request else field.url
+        return None
+
+    def get_chart_file_url(self, obj):
+        """获取谱面文件的完整URL"""
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        return self._build_url(request, obj.chart_file)
+
+    def get_audio_url(self, obj):
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        return self._build_url(request, obj.audio_file)
+
+    def get_cover_url(self, obj):
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        return self._build_url(request, obj.cover_image)
     
     def get_reviews(self, obj):
         """获取该谱面的所有评分（匿名）"""
@@ -334,93 +452,94 @@ class ChartDetailSerializer(serializers.ModelSerializer):
         return PeerReviewSerializer(reviews, many=True).data
 
 
-# ==================== 第二轮竞标相关序列化器 ====================
+# ==================== 第二轮竞标相关序列化器（已废弃） ====================
+# 注意：以下代码已被注释，现在使用统一的Bid/BidResult序列化器来处理歌曲和谱面竞标
 
-from .models import SecondBiddingRound, SecondBid, SecondBidResult
-
-
-class SecondBiddingRoundSerializer(serializers.ModelSerializer):
-    """第二轮竞标轮次序列化器"""
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    bidding_round_name = serializers.CharField(source='first_bidding_round.name', read_only=True)
-    
-    class Meta:
-        model = SecondBiddingRound
-        fields = (
-            'id', 'first_bidding_round', 'bidding_round_name', 'status', 'status_display',
-            'created_at', 'started_at', 'completed_at'
-        )
-        read_only_fields = ('id', 'created_at')
+# from .models import SecondBiddingRound, SecondBid, SecondBidResult
 
 
-class AvailableChartSerializer(serializers.ModelSerializer):
-    """可竞标的一半谱面序列化器"""
-    song = SongListSerializer(read_only=True)
-    creator_username = serializers.CharField(source='user.username', read_only=True)
-    part_one_chart_url = serializers.CharField(source='part_one_chart.chart_url', read_only=True, required=False)
-    part_one_chart_id_external = serializers.CharField(
-        source='part_one_chart.chart_id_external', read_only=True, required=False
-    )
-    
-    class Meta:
-        model = Chart
-        fields = (
-            'id', 'song', 'creator_username', 'part_one_chart_url', 'part_one_chart_id_external',
-            'average_score', 'created_at'
-        )
-        read_only_fields = fields
+# class SecondBiddingRoundSerializer(serializers.ModelSerializer):
+#     """第二轮竞标轮次序列化器"""
+#     status_display = serializers.CharField(source='get_status_display', read_only=True)
+#     bidding_round_name = serializers.CharField(source='first_bidding_round.name', read_only=True)
+#     
+#     class Meta:
+#         model = SecondBiddingRound
+#         fields = (
+#             'id', 'first_bidding_round', 'bidding_round_name', 'status', 'status_display',
+#             'created_at', 'started_at', 'completed_at'
+#         )
+#         read_only_fields = ('id', 'created_at')
 
 
-class SecondBidSerializer(serializers.ModelSerializer):
-    """第二轮竞标序列化器"""
-    song_title = serializers.CharField(source='target_chart_part_one.song.title', read_only=True)
-    creator_username = serializers.CharField(source='target_chart_part_one.user.username', read_only=True)
-    bidder_username = serializers.CharField(source='bidder.username', read_only=True)
-    
-    class Meta:
-        model = SecondBid
-        fields = (
-            'id', 'target_chart_part_one', 'song_title', 'creator_username',
-            'bidder_username', 'amount', 'is_dropped', 'created_at'
-        )
-        read_only_fields = ('id', 'bidder_username', 'is_dropped', 'created_at')
-    
-    def validate_amount(self, value):
-        """验证竞标金额"""
-        if value <= 0:
-            raise serializers.ValidationError('竞标金额必须大于0')
-        if value > 999:
-            raise serializers.ValidationError('竞标金额不能超过999')
-        return value
-    
-    def validate(self, data):
-        """验证不能对自己的谱面进行竞标"""
-        user = self.context['request'].user
-        target_chart = data.get('target_chart_part_one')
-        
-        if target_chart and target_chart.user == user:
-            raise serializers.ValidationError('不能对自己的谱面进行竞标')
-        
-        return data
+# class AvailableChartSerializer(serializers.ModelSerializer):
+#     """可竞标的一半谱面序列化器"""
+#     song = SongListSerializer(read_only=True)
+#     creator_username = serializers.CharField(source='user.username', read_only=True)
+#     part_one_chart_url = serializers.CharField(source='part_one_chart.chart_url', read_only=True, required=False)
+#     part_one_chart_id_external = serializers.CharField(
+#         source='part_one_chart.chart_id_external', read_only=True, required=False
+#     )
+#     
+#     class Meta:
+#         model = Chart
+#         fields = (
+#             'id', 'song', 'creator_username', 'part_one_chart_url', 'part_one_chart_id_external',
+#             'average_score', 'created_at'
+#         )
+#         read_only_fields = fields
 
 
-class SecondBidResultSerializer(serializers.ModelSerializer):
-    """第二轮竞标结果序列化器"""
-    song_title = serializers.CharField(source='part_one_chart.song.title', read_only=True)
-    part_one_creator_username = serializers.CharField(
-        source='part_one_chart.user.username', read_only=True
-    )
-    winner_username = serializers.CharField(source='winner.username', read_only=True)
-    allocation_type_display = serializers.CharField(source='get_allocation_type_display', read_only=True)
-    completed_chart_id = serializers.IntegerField(source='completed_chart.id', read_only=True, required=False)
-    
-    class Meta:
-        model = SecondBidResult
-        fields = (
-            'id', 'song_title', 'part_one_creator_username', 'winner_username',
-            'allocation_type', 'allocation_type_display', 'completed_chart_id', 'allocated_at'
-        )
-        read_only_fields = fields
+# class SecondBidSerializer(serializers.ModelSerializer):
+#     """第二轮竞标序列化器"""
+#     song_title = serializers.CharField(source='target_chart_part_one.song.title', read_only=True)
+#     creator_username = serializers.CharField(source='target_chart_part_one.user.username', read_only=True)
+#     bidder_username = serializers.CharField(source='bidder.username', read_only=True)
+#     
+#     class Meta:
+#         model = SecondBid
+#         fields = (
+#             'id', 'target_chart_part_one', 'song_title', 'creator_username',
+#             'bidder_username', 'amount', 'is_dropped', 'created_at'
+#         )
+#         read_only_fields = ('id', 'bidder_username', 'is_dropped', 'created_at')
+#     
+#     def validate_amount(self, value):
+#         """验证竞标金额"""
+#         if value <= 0:
+#             raise serializers.ValidationError('竞标金额必须大于0')
+#         if value > 999:
+#             raise serializers.ValidationError('竞标金额不能超过999')
+#         return value
+#     
+#     def validate(self, data):
+#         """验证不能对自己的谱面进行竞标"""
+#         user = self.context['request'].user
+#         target_chart = data.get('target_chart_part_one')
+#         
+#         if target_chart and target_chart.user == user:
+#             raise serializers.ValidationError('不能对自己的谱面进行竞标')
+#         
+#         return data
+
+
+# class SecondBidResultSerializer(serializers.ModelSerializer):
+#     """第二轮竞标结果序列化器"""
+#     song_title = serializers.CharField(source='part_one_chart.song.title', read_only=True)
+#     part_one_creator_username = serializers.CharField(
+#         source='part_one_chart.user.username', read_only=True
+#     )
+#     winner_username = serializers.CharField(source='winner.username', read_only=True)
+#     allocation_type_display = serializers.CharField(source='get_allocation_type_display', read_only=True)
+#     completed_chart_id = serializers.IntegerField(source='completed_chart.id', read_only=True, required=False)
+#     
+#     class Meta:
+#         model = SecondBidResult
+#         fields = (
+#             'id', 'song_title', 'part_one_creator_username', 'winner_username',
+#             'allocation_type', 'allocation_type_display', 'completed_chart_id', 'allocated_at'
+#         )
+#         read_only_fields = fields
 
 
 class BannerSerializer(serializers.ModelSerializer):

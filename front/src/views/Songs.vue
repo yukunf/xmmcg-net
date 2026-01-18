@@ -165,6 +165,20 @@
                   {{ formatDate(row.created_at) }}
                 </template>
               </el-table-column>
+              <el-table-column label="操作" width="120" align="center">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.status === 'won'"
+                    type="success"
+                    size="small"
+                    :icon="Download"
+                    @click="downloadSong(row.song)"
+                  >
+                    下载
+                  </el-button>
+                  <span v-else style="color: #ccc; font-size: 12px;">-</span>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
         </el-card>
@@ -938,11 +952,11 @@ const handleSubmitBid = async () => {
   
   bidSubmitting.value = true
   try {
-    const response = await submitBid(
-      bidForm.value.songId,
-      bidForm.value.amount,
-      currentRound.value.id
-    )
+    const response = await submitBid({
+      songId: bidForm.value.songId,
+      amount: bidForm.value.amount,
+      roundId: currentRound.value.id
+    })
     
     if (response.success) {
       ElMessage.success('竞标已提交')

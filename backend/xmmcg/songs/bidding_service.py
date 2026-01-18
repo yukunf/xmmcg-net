@@ -1,6 +1,7 @@
 """
 竞标管理服务
 处理竞标的创建、验证、分配等业务逻辑
+支持歌曲竞标和谱面竞标的统一处理
 """
 
 import random
@@ -9,7 +10,7 @@ from django.db.models import Sum
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import Bid, BidResult, BiddingRound, Song, MAX_SONGS_PER_USER, RANDOM_ALLOCATION_COST
+from .models import Bid, BidResult, BiddingRound, Song, Chart, MAX_SONGS_PER_USER, RANDOM_ALLOCATION_COST
 from users.models import UserProfile
 
 
@@ -20,16 +21,17 @@ class BiddingService:
     @transaction.atomic
     def allocate_bids(bidding_round_id):
         """
-        执行竞标分配逻辑
+        执行竞标分配逻辑（统一支持歌曲和谱面竞标）
         
         算法：
-        1. 获取该轮次的所有有效竞标（未drop）
-        2. 按出价从高到低排序
-        3. 逐个处理竞标：
-           - 如果该歌曲还未被分配，将该竞标标记为中标
-           - 该歌曲的其他竞标标记为drop
-        4. 对于未获得任何歌曲的用户，从未被分配的歌曲中随机分配
-        5. 标记该轮次为已完成
+        1. 根据BiddingRound.bidding_type确定竞标类型（song/chart）
+        2. 获取该轮次的所有有效竞标（未drop）
+        3. 按出价从高到低排序
+        4. 逐个处理竞标：
+           - 如果该目标（歌曲或谱面）还未被分配，将该竞标标记为中标
+           - 该目标的其他竞标标记为drop
+        5. 对于未获得任何目标的用户，从未被分配的目标中随机分配
+        6. 标记该轮次为已完成
         
         Args:
             bidding_round_id: 竞标轮次ID
@@ -50,14 +52,24 @@ class BiddingService:
         if bidding_round.status != 'active':
             raise ValidationError(f'只能对"进行中"的竞标轮次进行分配')
         
+        bidding_type = bidding_round.bidding_type  # 'song' or 'chart'
+        
         # 清空之前的分配结果（如果有重新分配）
         BidResult.objects.filter(bidding_round=bidding_round).delete()
         
-        # 获取所有有效竞标
-        all_bids = list(Bid.objects.filter(
-            bidding_round=bidding_round,
-            is_dropped=False
-        ).select_related('user', 'song'))
+        # 获取所有有效竞标（根据类型选择正确的关联）
+        if bidding_type == 'song':
+            all_bids = list(Bid.objects.filter(
+                bidding_round=bidding_round,
+                is_dropped=False,
+                bid_type='song'
+            ).select_related('user', 'song'))
+        else:  # chart
+            all_bids = list(Bid.objects.filter(
+                bidding_round=bidding_round,
+                is_dropped=False,
+                bid_type='chart'
+            ).select_related('user', 'chart', 'chart__user'))
         
         # 按出价从高到低排序，同价格随机打乱
         from collections import defaultdict
@@ -74,9 +86,9 @@ class BiddingService:
         
         all_bids = sorted_bids
         
-        # 追踪已分配的歌曲和用户
-        allocated_songs = set()  # 已分配的歌曲ID集合
-        allocated_users = {}     # 用户ID -> 歌曲ID（每个用户最多一首）
+        # 追踪已分配的目标和用户
+        allocated_targets = set()  # 已分配的目标ID集合（歌曲或谱面）
+        allocated_users = {}       # 用户ID -> 目标ID（每个用户最多一个）
         
         # 第一阶段：按出价从高到低进行分配
         for bid in all_bids:
@@ -87,17 +99,31 @@ class BiddingService:
                 bid.save()
                 continue
             
-            if bid.song.id not in allocated_songs:
-                # 该歌曲尚未被分配，分配给该竞标者
-                BidResult.objects.create(
-                    bidding_round=bidding_round,
-                    user=bid.user,
-                    song=bid.song,
-                    bid_amount=bid.amount,
-                    allocation_type='win'
-                )
-                allocated_songs.add(bid.song.id)
-                allocated_users[bid.user.id] = bid.song.id  # 记录用户已中标
+            target_id = bid.song.id if bidding_type == 'song' else bid.chart.id
+            
+            if target_id not in allocated_targets:
+                # 该目标尚未被分配，分配给该竞标者
+                if bidding_type == 'song':
+                    BidResult.objects.create(
+                        bidding_round=bidding_round,
+                        user=bid.user,
+                        bid_type='song',
+                        song=bid.song,
+                        bid_amount=bid.amount,
+                        allocation_type='win'
+                    )
+                else:  # chart
+                    BidResult.objects.create(
+                        bidding_round=bidding_round,
+                        user=bid.user,
+                        bid_type='chart',
+                        chart=bid.chart,
+                        bid_amount=bid.amount,
+                        allocation_type='win'
+                    )
+                
+                allocated_targets.add(target_id)
+                allocated_users[bid.user.id] = target_id  # 记录用户已中标
                 
                 # 立即drop该用户的所有其他竞标
                 Bid.objects.filter(
@@ -106,69 +132,99 @@ class BiddingService:
                     is_dropped=False
                 ).exclude(id=bid.id).update(is_dropped=True)
             else:
-                # 该歌曲已被更高出价者获得，标记此竞标为drop
+                # 该目标已被更高出价者获得，标记此竞标为drop
                 bid.is_dropped = True
                 bid.save()
         
-        # 获取所有歌曲
-        all_songs = Song.objects.all()
-        all_song_ids = set(song.id for song in all_songs)
+        # 获取所有可分配的目标
+        if bidding_type == 'song':
+            all_targets = Song.objects.all()
+            all_target_ids = set(song.id for song in all_targets)
+        else:  # chart
+            # 谱面竞标：只能竞标第一部分且没有完成第二部分的谱面
+            all_targets = Chart.objects.filter(
+                is_part_one=True,
+                status__in=['submitted', 'reviewed']
+            )
+            # 排除已有第二部分的谱面
+            from django.db.models import OuterRef, Exists
+            part_two_exists = Chart.objects.filter(
+                part_one_chart=OuterRef('pk'),
+                is_part_one=False
+            )
+            all_targets = all_targets.exclude(Exists(part_two_exists))
+            all_target_ids = set(chart.id for chart in all_targets)
         
-        # 获取未被分配的歌曲
-        unallocated_songs = list(all_song_ids - allocated_songs)
+        # 获取未被分配的目标
+        unallocated_targets = list(all_target_ids - allocated_targets)
         
-        # 第二阶段：对于未获得任何歌曲的用户，随机分配（需扣除保底代币）
+        # 第二阶段：对于未获得任何目标的用户，随机分配（需扣除保底代币）
         # 获取参与竞标的所有用户
         bidding_users = set(bid.user.id for bid in all_bids)
         
         for user_id in bidding_users:
-            # 检查该用户是否已经获得了歌曲
+            # 检查该用户是否已经获得了目标
             if user_id not in allocated_users:
-                # 用户未获得任何歌曲，随机分配一个
-                if unallocated_songs:
-                    random_song_id = random.choice(unallocated_songs)
-                    from django.contrib.auth.models import User
+                # 用户未获得任何目标，随机分配一个
+                if unallocated_targets:
+                    random_target_id = random.choice(unallocated_targets)
                     user = User.objects.get(id=user_id)
                     
-                    BidResult.objects.create(
-                        bidding_round=bidding_round,
-                        user=user,
-                        song_id=random_song_id,
-                        bid_amount=RANDOM_ALLOCATION_COST,  # 保底分配需要支付代币
-                        allocation_type='random'
-                    )
-                    allocated_songs.add(random_song_id)
-                    unallocated_songs.remove(random_song_id)
+                    if bidding_type == 'song':
+                        BidResult.objects.create(
+                            bidding_round=bidding_round,
+                            user=user,
+                            bid_type='song',
+                            song_id=random_target_id,
+                            bid_amount=RANDOM_ALLOCATION_COST,  # 保底分配需要支付代币
+                            allocation_type='random'
+                        )
+                    else:  # chart
+                        BidResult.objects.create(
+                            bidding_round=bidding_round,
+                            user=user,
+                            bid_type='chart',
+                            chart_id=random_target_id,
+                            bid_amount=RANDOM_ALLOCATION_COST,
+                            allocation_type='random'
+                        )
+                    
+                    allocated_targets.add(random_target_id)
+                    unallocated_targets.remove(random_target_id)
         
         # 标记竞标轮次为已完成
         bidding_round.status = 'completed'
+        bidding_round.completed_at = timezone.now()
         bidding_round.save()
         
         # 处理代币扣除
         token_deduction = BiddingService.process_allocation_tokens(bidding_round.id)
         
         # 返回统计信息
+        target_type_name = '歌曲' if bidding_type == 'song' else '谱面'
         return {
             'status': 'success',
-            'message': '竞标分配完成',
-            'total_songs': len(all_song_ids),
-            'allocated_songs': len(allocated_songs),
-            'unallocated_songs': len(unallocated_songs),
+            'message': f'{target_type_name}竞标分配完成',
+            'bidding_type': bidding_type,
+            'total_targets': len(all_target_ids),
+            'allocated_targets': len(allocated_targets),
+            'unallocated_targets': len(unallocated_targets),
             'winners': len(allocated_users),
             'total_bidders': len(bidding_users),
             'token_deduction': token_deduction,
         }
     
     @staticmethod
-    def create_bid(user, bidding_round, song, amount):
+    def create_bid(user, bidding_round, amount, song=None, chart=None):
         """
-        创建竞标
+        创建竞标（支持歌曲或谱面）
         
         Args:
             user: 竞标用户
             bidding_round: 竞标轮次
-            song: 目标歌曲
             amount: 竞标金额
+            song: 目标歌曲（歌曲竞标时使用）
+            chart: 目标谱面（谱面竞标时使用）
             
         Returns:
             Bid: 创建的竞标对象
@@ -180,6 +236,18 @@ class BiddingService:
         # 验证竞标轮次状态
         if bidding_round.status != 'active':
             raise ValidationError('只能在竞标进行中时创建新竞标')
+        
+        # 验证bid_type与目标一致
+        if song and chart:
+            raise ValidationError('不能同时竞标歌曲和谱面')
+        if not song and not chart:
+            raise ValidationError('必须指定竞标目标（歌曲或谱面）')
+        
+        bid_type = 'song' if song else 'chart'
+        
+        # 验证竞标类型与轮次类型一致
+        if bidding_round.bidding_type != bid_type:
+            raise ValidationError(f'该轮次是{bidding_round.get_bidding_type_display()}，不能竞标{"歌曲" if bid_type == "chart" else "谱面"}')
         
         # 验证用户代币余额
         try:
@@ -193,6 +261,10 @@ class BiddingService:
         if amount <= 0:
             raise ValidationError('竞标金额必须大于0')
         
+        # 对于谱面竞标，验证不能竞标自己的谱面
+        if chart and chart.user == user:
+            raise ValidationError('不能竞标自己的谱面')
+        
         # 验证用户在该轮次的竞标数量
         bid_count = Bid.objects.filter(
             bidding_round=bidding_round,
@@ -203,25 +275,36 @@ class BiddingService:
         from .models import MAX_BIDS_PER_USER
         if bid_count >= MAX_BIDS_PER_USER:
             raise ValidationError(
-                f'超过每轮最多竞标 {MAX_BIDS_PER_USER} 个歌曲的限制'
+                f'超过每轮最多竞标 {MAX_BIDS_PER_USER} 个的限制'
             )
         
-        # 检查用户是否已经对该歌曲竞标过
-        existing_bid = Bid.objects.filter(
-            bidding_round=bidding_round,
-            user=user,
-            song=song,
-            is_dropped=False
-        ).first()
-        
-        if existing_bid:
-            raise ValidationError('您已经对该歌曲竞标过了')
+        # 检查用户是否已经对该目标竞标过
+        if song:
+            existing_bid = Bid.objects.filter(
+                bidding_round=bidding_round,
+                user=user,
+                song=song,
+                is_dropped=False
+            ).first()
+            if existing_bid:
+                raise ValidationError('您已经对该歌曲竞标过了')
+        else:  # chart
+            existing_bid = Bid.objects.filter(
+                bidding_round=bidding_round,
+                user=user,
+                chart=chart,
+                is_dropped=False
+            ).first()
+            if existing_bid:
+                raise ValidationError('您已经对该谱面竞标过了')
         
         # 创建竞标
         bid = Bid.objects.create(
             bidding_round=bidding_round,
             user=user,
+            bid_type=bid_type,
             song=song,
+            chart=chart,
             amount=amount
         )
         
@@ -581,7 +664,54 @@ class PeerReviewService:
 
 # ==================== 第二轮竞标服务 ====================
 
-class SecondBiddingService:
+# ==================== 第二轮竞标服务（已废弃，使用统一的BiddingService） ====================
+# 注意：以下代码已被注释，现在使用统一的BiddingService来处理歌曲和谱面竞标
+# 请创建 BiddingRound 并设置 bidding_type='chart' 来进行谱面竞标
+
+# class SecondBiddingService:
+#     """第二轮竞标服务类 - 处理谱面竞标逻辑"""
+#     
+#     @staticmethod
+#     @transaction.atomic
+#     def allocate_second_bids(second_bidding_round_id):
+#         """
+#         执行第二轮竞标分配逻辑（用户竞标其他人的一半谱面）
+#         
+#         算法：
+#         1. 获取该第二轮竞标的所有有效竞标（未drop）
+#         2. 按出价从高到低排序
+#         3. 逐个处理竞标：
+#            - 如果该一半谱面还未被分配，将该竞标标记为中标
+#            - 该一半谱面的其他竞标标记为drop
+#         4. 对于未获得任何谱面的用户，从未被分配的谱面中随机分配
+#         5. 为每个中标者创建Chart对象（第二部分）
+#         6. 标记该轮次为已完成
+#         
+#         Args:
+#             second_bidding_round_id: 第二轮竞标轮次ID
+#             
+#         Returns:
+#             dict: 包含分配结果统计信息
+#             
+#         Raises:
+#             ValidationError: 如果轮次不存在或状态不适合分配
+#         """
+#         pass
+#     
+#     @staticmethod
+#     def validate_second_bid(user, target_chart_part_one, amount):
+#         """验证第二轮竞标是否有效"""
+#         pass
+#     
+#     @staticmethod
+#     def get_available_part_one_charts(second_bidding_round, user=None):
+#         """获取可参与第二轮竞标的第一部分谱面列表"""
+#         pass
+#     
+#     @staticmethod
+#     def get_second_bid_results(user, second_bidding_round):
+#         """获取用户在某个第二轮竞标中的分配结果"""
+#         pass
     """第二轮竞标服务类"""
     
     @staticmethod

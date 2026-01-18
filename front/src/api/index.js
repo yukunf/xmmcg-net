@@ -270,12 +270,15 @@ export const getMyBids = async (roundId) => {
 /**
  * 提交竞标
  */
-export const submitBid = async (songId, amount, roundId = null) => {
+export const submitBid = async ({ songId = null, chartId = null, amount, roundId = null }) => {
   try {
     await ensureCsrfToken()
-    const data = {
-      song_id: songId,
-      amount
+    const data = { amount }
+    if (songId) {
+      data.song_id = songId
+    }
+    if (chartId) {
+      data.chart_id = chartId
     }
     if (roundId) {
       data.round_id = roundId
@@ -315,11 +318,29 @@ export const getCharts = async (params = {}) => {
 }
 
 /**
- * 提交谱面
+ * 获取当前用户的谱面列表
  */
-export const submitChart = async (data) => {
+export const getMyCharts = async (roundId) => {
   try {
-    const response = await api.post('/songs/charts/', data)
+    const params = roundId ? { bidding_round_id: roundId } : {}
+    const response = await api.get('/songs/charts/me/', { params })
+    return response
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 提交谱面（半成品或完稿）
+ */
+export const submitChart = async (resultId, formData) => {
+  try {
+    await ensureCsrfToken()
+    const response = await api.post(`/songs/charts/${resultId}/submit/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
     return response
   } catch (error) {
     throw error

@@ -199,6 +199,33 @@ def get_cover_filename(instance, filename):
     return f'songs/cover_user{instance.user.id}_{unique_id}.{ext}'
 
 
+def get_chart_filename(instance, filename):
+    """
+    生成谱面文件名（固定为maidata.txt）
+    格式: charts/user{user_id}_song{song_id}_{uuid}/maidata.txt
+    例: charts/user1_song5_a1b2c3d4/maidata.txt
+    """
+    import uuid as uuid_lib
+    unique_id = uuid_lib.uuid4().hex[:8]
+    return f'charts/user{instance.user.id}_song{instance.song.id}_{unique_id}/maidata.txt'
+
+
+def get_chart_audio_filename(instance, filename):
+    """生成谱面音频文件名"""
+    import uuid as uuid_lib
+    ext = filename.split('.')[-1].lower()
+    unique_id = uuid_lib.uuid4().hex[:8]
+    return f'charts/audio_user{instance.user.id}_song{instance.song.id}_{unique_id}.{ext}'
+
+
+def get_chart_cover_filename(instance, filename):
+    """生成谱面封面文件名"""
+    import uuid as uuid_lib
+    ext = filename.split('.')[-1].lower()
+    unique_id = uuid_lib.uuid4().hex[:8]
+    return f'charts/cover_user{instance.user.id}_song{instance.song.id}_{unique_id}.{ext}'
+
+
 class Song(models.Model):
     """用户上传的歌曲模型"""
     
@@ -345,7 +372,12 @@ class BiddingRound(models.Model):
 
 
 class Bid(models.Model):
-    """用户竞标（用户对歌曲的出价）"""
+    """用户竞标（用户对歌曲或谱面的出价）"""
+    
+    BID_TYPE_CHOICES = [
+        ('song', '歌曲竞标'),
+        ('chart', '谱面竞标'),
+    ]
     
     bidding_round = models.ForeignKey(
         BiddingRound,
@@ -359,18 +391,39 @@ class Bid(models.Model):
         related_name='bids',
         help_text='竞标用户'
     )
+    
+    # 竞标类型（与BiddingRound.bidding_type对应）
+    bid_type = models.CharField(
+        max_length=20,
+        choices=BID_TYPE_CHOICES,
+        default='song',
+        help_text='竞标类型：歌曲或谱面'
+    )
+    
+    # 竞标目标（二选一）
     song = models.ForeignKey(
         Song,
         on_delete=models.CASCADE,
         related_name='bids',
-        help_text='目标歌曲'
+        null=True,
+        blank=True,
+        help_text='目标歌曲（仅当bid_type=song时使用）'
     )
+    chart = models.ForeignKey(
+        'Chart',
+        on_delete=models.CASCADE,
+        related_name='bids',
+        null=True,
+        blank=True,
+        help_text='目标谱面（仅当bid_type=chart时使用）'
+    )
+    
     amount = models.IntegerField(
         help_text='竞标金额（代币）'
     )
     is_dropped = models.BooleanField(
         default=False,
-        help_text='是否已被drop（歌曲被更高出价者获得）'
+        help_text='是否已被drop（被更高出价者获得）'
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -382,32 +435,50 @@ class Bid(models.Model):
     )
     
     class Meta:
-        # 一个用户在同一轮竞标中，对同一歌曲只能出价一次
-        unique_together = ('bidding_round', 'user', 'song')
         verbose_name = '竞标'
         verbose_name_plural = '竞标'
         ordering = ['-amount', '-created_at']
     
     def __str__(self):
-        return f"{self.user.username} 竞标 {self.song.title} - {self.amount}代币"
+        target = self.song.title if self.song else (f"{self.chart.user.username}的谱面" if self.chart else "未知")
+        return f"{self.user.username} 竞标 {target} - {self.amount}代币"
     
     def clean(self):
         """验证竞标"""
+        # 验证bid_type与song/chart的一致性
+        if self.bid_type == 'song' and not self.song:
+            raise ValidationError('歌曲竞标必须指定目标歌曲')
+        if self.bid_type == 'chart' and not self.chart:
+            raise ValidationError('谱面竞标必须指定目标谱面')
+        if self.song and self.chart:
+            raise ValidationError('不能同时竞标歌曲和谱面')
+        if not self.song and not self.chart:
+            raise ValidationError('必须指定竞标目标（歌曲或谱面）')
+        
+        # 对于谱面竞标，不能竞标自己的谱面
+        if self.bid_type == 'chart' and self.chart and self.chart.user == self.user:
+            raise ValidationError('不能竞标自己的谱面')
+        
         # 验证用户在该轮次中的竞标数量不超过限制
         bid_count = Bid.objects.filter(
             bidding_round=self.bidding_round,
             user=self.user,
             is_dropped=False
-        ).exclude(song=self.song).count()
+        ).exclude(id=self.id).count()
         
         if bid_count >= MAX_BIDS_PER_USER:
             raise ValidationError(
-                f'超过每轮最多竞标 {MAX_BIDS_PER_USER} 个歌曲的限制'
+                f'超过每轮最多竞标 {MAX_BIDS_PER_USER} 个的限制'
             )
         
         # 验证竞标金额
         if self.amount <= 0:
             raise ValidationError('竞标金额必须大于0')
+    
+    @property
+    def target(self):
+        """获取竞标目标对象（song或chart）"""
+        return self.song if self.bid_type == 'song' else self.chart
 
 
 class BidResult(models.Model):
@@ -416,6 +487,11 @@ class BidResult(models.Model):
     ALLOCATION_TYPE_CHOICES = [
         ('win', '中标'),
         ('random', '随机分配'),
+    ]
+    
+    BID_TYPE_CHOICES = [
+        ('song', '歌曲竞标'),
+        ('chart', '谱面竞标'),
     ]
     
     bidding_round = models.ForeignKey(
@@ -428,14 +504,35 @@ class BidResult(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='bid_results',
-        help_text='获得歌曲的用户'
+        help_text='获得歌曲或谱面的用户'
     )
+    
+    # 分配类型
+    bid_type = models.CharField(
+        max_length=20,
+        choices=BID_TYPE_CHOICES,
+        default='song',
+        help_text='分配类型：歌曲或谱面'
+    )
+    
+    # 分配的目标（二选一）
     song = models.ForeignKey(
         Song,
         on_delete=models.CASCADE,
         related_name='bid_results',
-        help_text='分配的歌曲'
+        null=True,
+        blank=True,
+        help_text='分配的歌曲（仅当bid_type=song时使用）'
     )
+    chart = models.ForeignKey(
+        'Chart',
+        on_delete=models.CASCADE,
+        related_name='bid_results',
+        null=True,
+        blank=True,
+        help_text='分配的谱面（仅当bid_type=chart时使用）'
+    )
+    
     bid_amount = models.IntegerField(
         help_text='最终成交的竞标金额'
     )
@@ -451,23 +548,38 @@ class BidResult(models.Model):
     )
     
     class Meta:
-        # 一个用户在同一轮竞标中，对同一歌曲只能有一个分配结果
-        unique_together = ('bidding_round', 'user', 'song')
         verbose_name = '竞标结果'
         verbose_name_plural = '竞标结果'
         ordering = ['-allocated_at']
     
     def __str__(self):
         allocation_type_display = dict(self.ALLOCATION_TYPE_CHOICES)[self.allocation_type]
-        return f"{self.user.username} {allocation_type_display} {self.song.title} - {self.bid_amount}代币"
+        target = self.song.title if self.song else (f"{self.chart.user.username}的谱面" if self.chart else "未知")
+        return f"{self.user.username} {allocation_type_display} {target} - {self.bid_amount}代币"
+    
+    def clean(self):
+        """验证分配结果"""
+        if self.bid_type == 'song' and not self.song:
+            raise ValidationError('歌曲分配必须指定目标歌曲')
+        if self.bid_type == 'chart' and not self.chart:
+            raise ValidationError('谱面分配必须指定目标谱面')
+        if self.song and self.chart:
+            raise ValidationError('不能同时分配歌曲和谱面')
+        if not self.song and not self.chart:
+            raise ValidationError('必须指定分配目标（歌曲或谱面）')
+    
+    @property
+    def target(self):
+        """获取分配目标对象（song或chart）"""
+        return self.song if self.bid_type == 'song' else self.chart
 
 
 class Chart(models.Model):
     """用户提交的谱面（beatmap）"""
     
     STATUS_CHOICES = [
-        ('draft', '草稿'),
-        ('submitted', '已提交'),
+        ('part_submitted', '半成品'),
+        ('final_submitted', '完稿'),
         ('under_review', '评分中'),
         ('reviewed', '已评分'),
     ]
@@ -504,24 +616,35 @@ class Chart(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='draft',
+        default='part_submitted',
         help_text='谱面状态'
     )
-    
-    # 文件引用（不在本服务器托管，仅记录URL或标识）
-    # 假设另一个网站提供的谱面URL格式为: https://chart-server.com/charts/{chart_id}/maidata.txt
-    chart_url = models.URLField(
+    designer = models.CharField(
+        max_length=100,
+        default='未填写',
+        help_text='谱师名义'
+    )
+
+    # 上传资源（第一阶段半成品需要打包文件）
+    audio_file = models.FileField(
+        upload_to=get_chart_audio_filename,
         null=True,
         blank=True,
-        help_text='谱面URL（指向外部文件服务器）'
+        help_text='谱面对应音频文件'
+    )
+    cover_image = models.ImageField(
+        upload_to=get_chart_cover_filename,
+        null=True,
+        blank=True,
+        help_text='谱面封面图片'
     )
     
-    # 谱面标识（由外部服务器提供，用于定位maidata.txt）
-    chart_id_external = models.CharField(
-        max_length=100,
+    # 谱面文件（本地托管，文件名固定为maidata.txt）
+    chart_file = models.FileField(
+        upload_to=get_chart_filename,
         null=True,
         blank=True,
-        help_text='外部服务器的谱面标识'
+        help_text='谱面文件（maidata.txt）'
     )
     
     # 时间戳
@@ -587,8 +710,14 @@ class Chart(models.Model):
         part_info = '（二部分）' if not self.is_part_one else ''
         return f"{self.user.username} - {self.song.title} {part_info}({self.get_status_display()})"
     
-    def calculate_average_score(self):
-        """计算平均分"""
+    def delete(self, *args, **kwargs):
+        """删除谱面时同时删除关联的谱面文件"""
+        if self.chart_file:
+            self.chart_file.delete(save=False)
+        if self.audio_file:
+            self.audio_file.delete(save=False)
+        if self.cover_image:
+            self.cover_image.delete(save=False)
         if self.review_count == 0:
             self.average_score = 0.0
         else:
@@ -715,197 +844,199 @@ class PeerReview(models.Model):
             )
 
 
-# ==================== 第二轮竞标系统 ====================
+# ==================== 第二轮竞标系统（已废弃，使用统一的Bid系统） ====================
+# 注意：以下代码已被注释，现在使用统一的Bid/BidResult系统来处理歌曲和谱面竞标
+# 请使用 BiddingRound.bidding_type='chart' 来进行谱面竞标
 
-class SecondBiddingRound(models.Model):
-    """第二轮竞标轮次（竞标其他选手已提交的一半谱面来续写）"""
-    
-    STATUS_CHOICES = [
-        ('pending', '待开始'),
-        ('active', '进行中'),
-        ('completed', '已完成'),
-    ]
-    
-    # 关联的第一轮竞标
-    first_bidding_round = models.OneToOneField(
-        BiddingRound,
-        on_delete=models.CASCADE,
-        related_name='second_bidding_round',
-        help_text='对应的第一轮竞标轮次'
-    )
-    
-    # 状态
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='pending',
-        help_text='第二轮竞标状态'
-    )
-    
-    # 说明：参与者为第一轮的所有竞标者，可竞标标的为其他人已提交的一半谱面
-    name = models.CharField(
-        max_length=100,
-        help_text='第二轮名称'
-    )
-    
-    # 时间戳
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text='创建时间'
-    )
-    started_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text='开始时间'
-    )
-    completed_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text='完成时间'
-    )
-    
-    class Meta:
-        verbose_name = '第二轮竞标轮次'
-        verbose_name_plural = '第二轮竞标轮次'
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.name} ({self.get_status_display()})"
-
-
-class SecondBid(models.Model):
-    """第二轮竞标（用户竞标其他人的一半谱面）"""
-    
-    second_bidding_round = models.ForeignKey(
-        SecondBiddingRound,
-        on_delete=models.CASCADE,
-        related_name='second_bids',
-        help_text='所属第二轮竞标轮次'
-    )
-    
-    bidder = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='second_bids',
-        help_text='竞标者（需要续写的选手）'
-    )
-    
-    # 标的物：第一轮已提交的一半谱面
-    target_chart_part_one = models.ForeignKey(
-        Chart,
-        on_delete=models.CASCADE,
-        related_name='second_bids',
-        help_text='竞标的目标：其他选手的一半谱面'
-    )
-    
-    # 竞标金额（从剩余token中消耗）
-    amount = models.IntegerField(
-        help_text='竞标金额（代币）'
-    )
-    
-    # 状态
-    is_dropped = models.BooleanField(
-        default=False,
-        help_text='是否已被drop（被更高出价者竞走）'
-    )
-    
-    # 时间戳
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text='竞标时间'
-    )
-    updated_at = models.DateTimeField(
-        auto_now=True,
-        help_text='最后更新时间'
-    )
-    
-    class Meta:
-        verbose_name = '第二轮竞标'
-        verbose_name_plural = '第二轮竞标'
-        ordering = ['-amount', '-created_at']
-        # 同一选手在同一轮次中，对同一个一半谱面只能出价一次
-        unique_together = ('second_bidding_round', 'bidder', 'target_chart_part_one')
-    
-    def __str__(self):
-        return f"{self.bidder.username} 竞标 {self.target_chart_part_one.user.username}的一半谱面 - {self.amount}代币"
-    
-    def clean(self):
-        """验证第二轮竞标"""
-        # 不能竞标自己的谱面
-        if self.bidder == self.target_chart_part_one.user:
-            raise ValidationError('不能竞标自己的谱面')
-        
-        # 验证竞标金额
-        if self.amount <= 0:
-            raise ValidationError('竞标金额必须大于0')
+# class SecondBiddingRound(models.Model):
+#     """第二轮竞标轮次（竞标其他选手已提交的一半谱面来续写）"""
+#     
+#     STATUS_CHOICES = [
+#         ('pending', '待开始'),
+#         ('active', '进行中'),
+#         ('completed', '已完成'),
+#     ]
+#     
+#     # 关联的第一轮竞标
+#     first_bidding_round = models.OneToOneField(
+#         BiddingRound,
+#         on_delete=models.CASCADE,
+#         related_name='second_bidding_round',
+#         help_text='对应的第一轮竞标轮次'
+#     )
+#     
+#     # 状态
+#     status = models.CharField(
+#         max_length=20,
+#         choices=STATUS_CHOICES,
+#         default='pending',
+#         help_text='第二轮竞标状态'
+#     )
+#     
+#     # 说明：参与者为第一轮的所有竞标者，可竞标标的为其他人已提交的一半谱面
+#     name = models.CharField(
+#         max_length=100,
+#         help_text='第二轮名称'
+#     )
+#     
+#     # 时间戳
+#     created_at = models.DateTimeField(
+#         auto_now_add=True,
+#         help_text='创建时间'
+#     )
+#     started_at = models.DateTimeField(
+#         null=True,
+#         blank=True,
+#         help_text='开始时间'
+#     )
+#     completed_at = models.DateTimeField(
+#         null=True,
+#         blank=True,
+#         help_text='完成时间'
+#     )
+#     
+#     class Meta:
+#         verbose_name = '第二轮竞标轮次'
+#         verbose_name_plural = '第二轮竞标轮次'
+#         ordering = ['-created_at']
+#     
+#     def __str__(self):
+#         return f"{self.name} ({self.get_status_display()})"
 
 
-class SecondBidResult(models.Model):
-    """第二轮竞标结果（分配结果）"""
-    
-    ALLOCATION_TYPE_CHOICES = [
-        ('win', '中标'),
-        ('random', '随机分配'),
-    ]
-    
-    second_bidding_round = models.ForeignKey(
-        SecondBiddingRound,
-        on_delete=models.CASCADE,
-        related_name='second_results',
-        help_text='所属第二轮竞标轮次'
-    )
-    
-    winner = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='second_bid_results',
-        help_text='获得一半谱面的选手（续写者）'
-    )
-    
-    # 获得的一半谱面
-    part_one_chart = models.ForeignKey(
-        Chart,
-        on_delete=models.CASCADE,
-        related_name='second_bid_results',
-        help_text='获得的第一部分谱面'
-    )
-    
-    # 最终成交价格
-    bid_amount = models.IntegerField(
-        help_text='最终成交的竞标金额'
-    )
-    
-    # 分配类型
-    allocation_type = models.CharField(
-        max_length=20,
-        choices=ALLOCATION_TYPE_CHOICES,
-        default='win',
-        help_text='分配类型（中标或随机分配）'
-    )
-    
-    # 时间戳
-    allocated_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text='分配时间'
-    )
-    
-    # 关联的完成谱面（二部分）
-    completed_chart = models.OneToOneField(
-        Chart,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='second_bid_result_completion',
-        help_text='基于此分配创建的完成谱面'
-    )
-    
-    class Meta:
-        verbose_name = '第二轮竞标结果'
-        verbose_name_plural = '第二轮竞标结果'
-        ordering = ['-allocated_at']
-        # 同一选手对同一个一半谱面只能有一个分配结果
-        unique_together = ('second_bidding_round', 'winner', 'part_one_chart')
-    
-    def __str__(self):
-        allocation_type_display = dict(self.ALLOCATION_TYPE_CHOICES)[self.allocation_type]
-        return f"{self.winner.username} {allocation_type_display} {self.part_one_chart.user.username}的一半谱面 - {self.bid_amount}代币"
+# class SecondBid(models.Model):
+#     """第二轮竞标（用户竞标其他人的一半谱面）"""
+#     
+#     second_bidding_round = models.ForeignKey(
+#         SecondBiddingRound,
+#         on_delete=models.CASCADE,
+#         related_name='second_bids',
+#         help_text='所属第二轮竞标轮次'
+#     )
+#     
+#     bidder = models.ForeignKey(
+#         User,
+#         on_delete=models.CASCADE,
+#         related_name='second_bids',
+#         help_text='竞标者（需要续写的选手）'
+#     )
+#     
+#     # 标的物：第一轮已提交的一半谱面
+#     target_chart_part_one = models.ForeignKey(
+#         Chart,
+#         on_delete=models.CASCADE,
+#         related_name='second_bids',
+#         help_text='竞标的目标：其他选手的一半谱面'
+#     )
+#     
+#     # 竞标金额（从剩余token中消耗）
+#     amount = models.IntegerField(
+#         help_text='竞标金额（代币）'
+#     )
+#     
+#     # 状态
+#     is_dropped = models.BooleanField(
+#         default=False,
+#         help_text='是否已被drop（被更高出价者竞走）'
+#     )
+#     
+#     # 时间戳
+#     created_at = models.DateTimeField(
+#         auto_now_add=True,
+#         help_text='竞标时间'
+#     )
+#     updated_at = models.DateTimeField(
+#         auto_now=True,
+#         help_text='最后更新时间'
+#     )
+#     
+#     class Meta:
+#         verbose_name = '第二轮竞标'
+#         verbose_name_plural = '第二轮竞标'
+#         ordering = ['-amount', '-created_at']
+#         # 同一选手在同一轮次中，对同一个一半谱面只能出价一次
+#         unique_together = ('second_bidding_round', 'bidder', 'target_chart_part_one')
+#     
+#     def __str__(self):
+#         return f"{self.bidder.username} 竞标 {self.target_chart_part_one.user.username}的一半谱面 - {self.amount}代币"
+#     
+#     def clean(self):
+#         """验证第二轮竞标"""
+#         # 不能竞标自己的谱面
+#         if self.bidder == self.target_chart_part_one.user:
+#             raise ValidationError('不能竞标自己的谱面')
+#         
+#         # 验证竞标金额
+#         if self.amount <= 0:
+#             raise ValidationError('竞标金额必须大于0')
+
+
+# class SecondBidResult(models.Model):
+#     """第二轮竞标结果（分配结果）"""
+#     
+#     ALLOCATION_TYPE_CHOICES = [
+#         ('win', '中标'),
+#         ('random', '随机分配'),
+#     ]
+#     
+#     second_bidding_round = models.ForeignKey(
+#         SecondBiddingRound,
+#         on_delete=models.CASCADE,
+#         related_name='second_results',
+#         help_text='所属第二轮竞标轮次'
+#     )
+#     
+#     winner = models.ForeignKey(
+#         User,
+#         on_delete=models.CASCADE,
+#         related_name='second_bid_results',
+#         help_text='获得一半谱面的选手（续写者）'
+#     )
+#     
+#     # 获得的一半谱面
+#     part_one_chart = models.ForeignKey(
+#         Chart,
+#         on_delete=models.CASCADE,
+#         related_name='second_bid_results',
+#         help_text='获得的第一部分谱面'
+#     )
+#     
+#     # 最终成交价格
+#     bid_amount = models.IntegerField(
+#         help_text='最终成交的竞标金额'
+#     )
+#     
+#     # 分配类型
+#     allocation_type = models.CharField(
+#         max_length=20,
+#         choices=ALLOCATION_TYPE_CHOICES,
+#         default='win',
+#         help_text='分配类型（中标或随机分配）'
+#     )
+#     
+#     # 时间戳
+#     allocated_at = models.DateTimeField(
+#         auto_now_add=True,
+#         help_text='分配时间'
+#     )
+#     
+#     # 关联的完成谱面（二部分）
+#     completed_chart = models.OneToOneField(
+#         Chart,
+#         on_delete=models.SET_NULL,
+#         null=True,
+#         blank=True,
+#         related_name='second_bid_result_completion',
+#         help_text='基于此分配创建的完成谱面'
+#     )
+#     
+#     class Meta:
+#         verbose_name = '第二轮竞标结果'
+#         verbose_name_plural = '第二轮竞标结果'
+#         ordering = ['-allocated_at']
+#         # 同一选手对同一个一半谱面只能有一个分配结果
+#         unique_together = ('second_bidding_round', 'winner', 'part_one_chart')
+#     
+#     def __str__(self):
+#         allocation_type_display = dict(self.ALLOCATION_TYPE_CHOICES)[self.allocation_type]
+#         return f"{self.winner.username} {allocation_type_display} {self.part_one_chart.user.username}的一半谱面 - {self.bid_amount}代币"

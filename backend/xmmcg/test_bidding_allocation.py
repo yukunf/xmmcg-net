@@ -15,6 +15,7 @@ import os
 import sys
 import django
 import uuid
+from django.core.files.base import ContentFile
 
 # 设置 Django 环境
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'xmmcg.settings')
@@ -93,13 +94,17 @@ def create_test_songs(users):
     for i, title in enumerate(song_titles):
         # 前5个用户各上传一首歌
         if i < len(users):
-            song = Song.objects.create(
+            # 先创建基础记录（不包含文件），随后保存一个占位音频文件
+            song = Song(
                 user=users[i],
                 title=title,
-                # 测试数据必需字段
                 audio_hash=f'test_hash_{uuid.uuid4().hex}',  # 生成唯一哈希
                 file_size=3000000,  # 假设3MB文件大小
             )
+            song.save()
+            # 保存一个占位音频文件到 FileField（满足非空约束）
+            dummy_audio = ContentFile(b"test audio content")
+            song.audio_file.save("dummy.mp3", dummy_audio, save=True)
             songs.append(song)
             print(f"  ✓ {title} (上传者: {users[i].username})")
     
@@ -114,6 +119,7 @@ def create_bidding_round():
     bidding_round = BiddingRound.objects.create(
         name=f'测试竞标轮次 - {datetime.now().strftime("%Y%m%d_%H%M%S")}',
         status='active',
+        bidding_type='song',  # 统一模型下显式指定为歌曲竞标
         started_at=timezone.now()
     )
     
@@ -195,11 +201,12 @@ def create_test_bids(users, songs, bidding_round):
         # 设置不同的创建时间（模拟不同时间提交）
         created_time = base_time + timedelta(seconds=bid_info['delay'])
         
-        bid = Bid.objects.create(
-            bidding_round=bidding_round,
+        # 使用统一服务创建竞标，确保通过新校验逻辑
+        bid = BiddingService.create_bid(
             user=bid_info['user'],
-            song=bid_info['song'],
+            bidding_round=bidding_round,
             amount=bid_info['amount'],
+            song=bid_info['song'],
         )
         # 手动设置创建时间（仅用于测试）
         Bid.objects.filter(id=bid.id).update(created_at=created_time)
@@ -232,7 +239,7 @@ def show_results(bidding_round):
     print("分配结果")
     print("=" * 60 + "\n")
     
-    results = BidResult.objects.filter(bidding_round=bidding_round).select_related('user', 'song')
+    results = BidResult.objects.filter(bidding_round=bidding_round).select_related('user', 'song', 'chart', 'chart__user')
     
     # 按分配类型分组
     win_results = results.filter(allocation_type='win')
@@ -241,13 +248,25 @@ def show_results(bidding_round):
     print(f"【竞价中标】共 {win_results.count()} 人：")
     print("-" * 60)
     for result in win_results:
-        print(f"  {result.user.username} → {result.song.title}")
+        if result.bid_type == 'song' and result.song:
+            target_text = result.song.title
+        elif result.bid_type == 'chart' and result.chart:
+            target_text = f"{result.chart.user.username} 的谱面（{result.chart.song.title}）"
+        else:
+            target_text = "未知标的"
+        print(f"  {result.user.username} → {target_text}")
         print(f"    出价: {result.bid_amount} 代币 | 类型: {result.allocation_type}")
     
     print(f"\n【保底随机分配】共 {random_results.count()} 人：")
     print("-" * 60)
     for result in random_results:
-        print(f"  {result.user.username} → {result.song.title}")
+        if result.bid_type == 'song' and result.song:
+            target_text = result.song.title
+        elif result.bid_type == 'chart' and result.chart:
+            target_text = f"{result.chart.user.username} 的谱面（{result.chart.song.title}）"
+        else:
+            target_text = "未知标的"
+        print(f"  {result.user.username} → {target_text}")
         print(f"    扣除代币: {result.bid_amount} | 类型: {result.allocation_type}")
     
     print("\n" + "=" * 60)
@@ -258,8 +277,8 @@ def show_results(bidding_round):
     test_users = User.objects.filter(username__startswith='bidtest_')
     for user in test_users:
         profile = UserProfile.objects.get(user=user)
-        has_song = results.filter(user=user).exists()
-        status = "✓ 已分配歌曲" if has_song else "✗ 未分配"
+        has_target = results.filter(user=user).exists()
+        status = "✓ 已分配标的" if has_target else "✗ 未分配"
         print(f"  {user.username}: {profile.token} 代币 [{status}]")
     
     print("\n" + "=" * 60)

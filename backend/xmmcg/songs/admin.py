@@ -1,5 +1,9 @@
 from django.contrib import admin
-from .models import Song, Banner, Announcement, CompetitionPhase, BiddingRound, Bid, BidResult
+from .models import (
+    Song, Banner, Announcement, CompetitionPhase, 
+    BiddingRound, Bid, BidResult,
+    Chart, PeerReviewAllocation, PeerReview,
+)
 
 
 @admin.register(Song)
@@ -157,15 +161,15 @@ class BiddingRoundAdmin(admin.ModelAdmin):
 
 @admin.register(Bid)
 class BidAdmin(admin.ModelAdmin):
-    list_display = ('bidding_round', 'user', 'song', 'amount', 'is_dropped', 'created_at')
-    list_filter = ('bidding_round', 'is_dropped', 'created_at')
+    list_display = ('bidding_round', 'bid_type', 'user', 'song', 'chart', 'amount', 'is_dropped', 'created_at')
+    list_filter = ('bidding_round', 'bid_type', 'is_dropped', 'created_at')
     ordering = ('-created_at',)
-    search_fields = ('user__username', 'song__title', 'bidding_round__name')
+    search_fields = ('user__username', 'song__title', 'chart__song__title', 'chart__user__username', 'bidding_round__name')
     readonly_fields = ('created_at',)
     
     fieldsets = (
         ('竞标信息', {
-            'fields': ('bidding_round', 'user', 'song', 'amount', 'is_dropped')
+            'fields': ('bidding_round', 'bid_type', 'user', 'song', 'chart', 'amount', 'is_dropped')
         }),
         ('系统', {
             'fields': ('created_at',),
@@ -176,18 +180,104 @@ class BidAdmin(admin.ModelAdmin):
 
 @admin.register(BidResult)
 class BidResultAdmin(admin.ModelAdmin):
-    list_display = ('bidding_round', 'song', 'user', 'bid_amount', 'allocation_type', 'allocated_at')
-    list_filter = ('bidding_round', 'allocation_type', 'allocated_at')
+    list_display = ('bidding_round', 'bid_type', 'song', 'chart', 'user', 'bid_amount', 'allocation_type', 'allocated_at')
+    list_filter = ('bidding_round', 'bid_type', 'allocation_type', 'allocated_at')
     ordering = ('-allocated_at',)
-    search_fields = ('song__title', 'user__username', 'bidding_round__name')
+    search_fields = ('song__title', 'chart__song__title', 'chart__user__username', 'user__username', 'bidding_round__name')
     readonly_fields = ('allocated_at',)
     
     fieldsets = (
         ('竞标结果', {
-            'fields': ('bidding_round', 'song', 'user', 'bid_amount', 'allocation_type')
+            'fields': ('bidding_round', 'bid_type', 'song', 'chart', 'user', 'bid_amount', 'allocation_type')
         }),
         ('系统', {
             'fields': ('allocated_at',),
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(Chart)
+class ChartAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'song', 'status', 'is_part_one', 'review_count', 'average_score', 'created_at')
+    list_filter = ('status', 'is_part_one', 'bidding_round', 'created_at')
+    ordering = ('-created_at',)
+    search_fields = ('user__username', 'song__title')
+    readonly_fields = ('review_count', 'total_score', 'average_score', 'created_at', 'submitted_at', 'review_completed_at')
+    
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('bidding_round', 'user', 'song', 'bid_result')
+        }),
+        ('谱面文件', {
+            'fields': ('chart_file', 'status')
+        }),
+        ('部分信息', {
+            'fields': ('is_part_one', 'part_one_chart', 'completion_bid_result')
+        }),
+        ('评分统计', {
+            'fields': ('review_count', 'total_score', 'average_score'),
+            'classes': ('collapse',)
+        }),
+        ('时间戳', {
+            'fields': ('created_at', 'submitted_at', 'review_completed_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(PeerReviewAllocation)
+class PeerReviewAllocationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'bidding_round', 'reviewer', 'chart', 'status', 'allocated_at')
+    list_filter = ('status', 'bidding_round', 'allocated_at')
+    ordering = ('-allocated_at',)
+    search_fields = ('reviewer__username', 'chart__song__title')
+    readonly_fields = ('allocated_at',)
+    
+    fieldsets = (
+        ('分配信息', {
+            'fields': ('bidding_round', 'reviewer', 'chart', 'status')
+        }),
+        ('时间', {
+            'fields': ('allocated_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(PeerReview)
+class PeerReviewAdmin(admin.ModelAdmin):
+    list_display = ('id', 'reviewer', 'chart', 'score', 'created_at')
+    list_filter = ('bidding_round', 'created_at')
+    ordering = ('-created_at',)
+    search_fields = ('reviewer__username', 'chart__song__title')
+    readonly_fields = ('created_at',)
+    
+    fieldsets = (
+        ('评分信息', {
+            'fields': ('allocation', 'bidding_round', 'reviewer', 'chart')
+        }),
+        ('评分内容', {
+            'fields': ('score', 'comment')
+        }),
+        ('时间', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+# 第二轮竞标相关Admin（已废弃）
+# @admin.register(SecondBiddingRound)
+# class SecondBiddingRoundAdmin(admin.ModelAdmin):
+#     ...
+
+
+# @admin.register(SecondBid)
+# class SecondBidAdmin(admin.ModelAdmin):
+#     ...
+
+
+# @admin.register(SecondBidResult)
+# class SecondBidResultAdmin(admin.ModelAdmin):
+#     ...

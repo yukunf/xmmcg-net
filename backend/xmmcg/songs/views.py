@@ -507,36 +507,59 @@ def user_bids_root(request):
             'bids': bids_data
         }, status=status.HTTP_200_OK)
     
-    else:  # POST - 创建竞标
+    else:  # POST - 创建竞标（支持歌曲和谱面）
         song_id = request.data.get('song_id')
+        chart_id = request.data.get('chart_id')
         amount = request.data.get('amount')
         round_id = request.data.get('round_id')
         
-        if not song_id or not amount:
+        # 验证必须提供song_id或chart_id，二选一
+        if not (song_id or chart_id) or not amount:
             return Response({
                 'success': False,
-                'message': '缺少必要字段：song_id, amount'
+                'message': '缺少必要字段：(song_id或chart_id), amount'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            song = Song.objects.get(id=song_id)
-        except Song.DoesNotExist:
+        if song_id and chart_id:
             return Response({
                 'success': False,
-                'message': '歌曲不存在'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': '不能同时竞标歌曲和谱面'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 获取竞标目标
+        song = None
+        chart = None
+        if song_id:
+            try:
+                song = Song.objects.get(id=song_id)
+            except Song.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': '歌曲不存在'
+                }, status=status.HTTP_404_NOT_FOUND)
+        else:  # chart_id
+            try:
+                chart = Chart.objects.get(id=chart_id)
+            except Chart.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': '谱面不存在'
+                }, status=status.HTTP_404_NOT_FOUND)
         
         # 获取竞标轮次（支持 CompetitionPhase ID 或 BiddingRound ID）
+        bid_type = 'song' if song else 'chart'
+        
         if round_id:
             # 先尝试作为 CompetitionPhase ID
             try:
-                phase = CompetitionPhase.objects.get(id=round_id, phase_key__icontains='bidding')
-                # 通过外键查找歌曲竞标轮次
-                round_obj = phase.bidding_rounds.filter(bidding_type='song').first()
+                phase_key_filter = 'bidding' if bid_type == 'song' else 'second_bidding'
+                phase = CompetitionPhase.objects.get(id=round_id, phase_key__icontains=phase_key_filter)
+                # 通过外键查找对应类型的竞标轮次
+                round_obj = phase.bidding_rounds.filter(bidding_type=bid_type).first()
                 if not round_obj:
                     round_obj = BiddingRound.objects.create(
                         competition_phase=phase,
-                        bidding_type='song',
+                        bidding_type=bid_type,
                         name=phase.name,
                         status='active'
                     )
@@ -544,6 +567,12 @@ def user_bids_root(request):
                 # 尝试作为 BiddingRound ID
                 try:
                     round_obj = BiddingRound.objects.get(id=round_id)
+                    # 验证竞标类型匹配
+                    if round_obj.bidding_type != bid_type:
+                        return Response({
+                            'success': False,
+                            'message': f'该轮次是{round_obj.get_bidding_type_display()}，不能竞标{"歌曲" if bid_type == "chart" else "谱面"}'
+                        }, status=status.HTTP_400_BAD_REQUEST)
                 except BiddingRound.DoesNotExist:
                     return Response({
                         'success': False,
@@ -552,19 +581,20 @@ def user_bids_root(request):
         else:
             # 获取当前活跃的竞标阶段
             now = timezone.now()
+            phase_key_filter = 'bidding' if bid_type == 'song' else 'second_bidding'
             active_phase = CompetitionPhase.objects.filter(
-                phase_key__icontains='bidding',
+                phase_key__icontains=phase_key_filter,
                 is_active=True,
                 start_time__lte=now,
                 end_time__gte=now
             ).first()
             
             if active_phase:
-                round_obj = active_phase.bidding_rounds.filter(bidding_type='song').first()
+                round_obj = active_phase.bidding_rounds.filter(bidding_type=bid_type).first()
                 if not round_obj:
                     round_obj = BiddingRound.objects.create(
                         competition_phase=active_phase,
-                        bidding_type='song',
+                        bidding_type=bid_type,
                         name=active_phase.name,
                         status='active'
                     )
@@ -576,14 +606,22 @@ def user_bids_root(request):
         
         try:
             amount = int(amount)
-            bid = BiddingService.create_bid(user, round_obj, song, amount)
+            bid = BiddingService.create_bid(user, round_obj, amount, song=song, chart=chart)
+            
+            # 构建响应数据
+            target_data = SongListSerializer(song).data if song else {
+                'id': chart.id,
+                'title': chart.song.title,
+                'creator': chart.user.username
+            }
             
             return Response({
                 'success': True,
                 'message': '竞标已创建',
                 'bid': {
                     'id': bid.id,
-                    'song': SongListSerializer(bid.song).data,
+                    'bid_type': bid.bid_type,
+                    'target': target_data,
                     'amount': bid.amount,
                     'created_at': bid.created_at,
                 }
@@ -692,16 +730,29 @@ def bid_results_view(request):
     results = BidResult.objects.filter(
         bidding_round=round_obj,
         user=user
-    ).select_related('song').order_by('-bid_amount')
+    ).select_related('song', 'chart', 'chart__user', 'chart__song').order_by('-bid_amount')
     
-    results_data = [{
-        'id': result.id,
-        'song': SongListSerializer(result.song).data,
-        'bid_amount': result.bid_amount,
-        'allocation_type': result.allocation_type,
-        'allocation_type_display': dict(BidResult.ALLOCATION_TYPE_CHOICES)[result.allocation_type],
-        'allocated_at': result.allocated_at,
-    } for result in results]
+    results_data = []
+    for result in results:
+        item = {
+            'id': result.id,
+            'bid_type': result.bid_type,
+            'bid_type_display': result.get_bid_type_display(),
+            'bid_amount': result.bid_amount,
+            'allocation_type': result.allocation_type,
+            'allocation_type_display': dict(BidResult.ALLOCATION_TYPE_CHOICES)[result.allocation_type],
+            'allocated_at': result.allocated_at,
+        }
+        if result.bid_type == 'song' and result.song:
+            item['song'] = SongListSerializer(result.song).data
+        elif result.bid_type == 'chart' and result.chart:
+            item['chart'] = {
+                'id': result.chart.id,
+                'song_title': result.chart.song.title,
+                'creator_username': result.chart.user.username,
+                'average_score': result.chart.average_score,
+            }
+        results_data.append(item)
     
     return Response({
         'success': True,
@@ -718,6 +769,38 @@ def bid_results_view(request):
 
 # ==================== 谱面相关API ====================
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def charts_root(request):
+    """
+    谱面列表
+    GET /api/charts/
+    """
+    from .models import Chart
+    from .serializers import ChartSerializer
+
+    charts = Chart.objects.select_related('song', 'user').order_by('-created_at')
+
+    page = int(request.query_params.get('page', 1))
+    page_size = int(request.query_params.get('page_size', 10))
+    start = (page - 1) * page_size
+    end = start + page_size
+
+    total_count = charts.count()
+    charts_page = charts[start:end]
+
+    serializer = ChartSerializer(charts_page, many=True, context={'request': request})
+
+    return Response({
+        'success': True,
+        'count': total_count,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total_count + page_size - 1) // page_size,
+        'results': serializer.data
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def submit_chart(request, result_id):
@@ -726,7 +809,8 @@ def submit_chart(request, result_id):
     POST /api/charts/{result_id}/submit/
     
     需要参数:
-    - chart_url 或 chart_id_external (至少一个)
+    - designer (谱师名义，必填)
+    - chart_file (maidata.txt)
     
     用户通过竞标获得了歌曲后，可以提交谱面
     """
@@ -752,12 +836,28 @@ def submit_chart(request, result_id):
             'success': False,
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+    validated = serializer.validated_data
+    new_file = validated.get('chart_file')
+    designer = validated.get('designer')
+    new_audio = validated.get('audio_file')
+    new_cover = validated.get('cover_image')
     
     if chart:
-        # 更新现有谱面
-        chart.chart_url = serializer.validated_data.get('chart_url', chart.chart_url)
-        chart.chart_id_external = serializer.validated_data.get('chart_id_external', chart.chart_id_external)
-        chart.status = 'submitted'
+        # 更新现有谱面，覆盖文件并同步谱师名义
+        if new_file:
+            if chart.chart_file:
+                chart.chart_file.delete(save=False)
+            chart.chart_file = new_file
+        if new_audio:
+            if chart.audio_file:
+                chart.audio_file.delete(save=False)
+            chart.audio_file = new_audio
+        if new_cover:
+            if chart.cover_image:
+                chart.cover_image.delete(save=False)
+            chart.cover_image = new_cover
+        chart.designer = designer
+        chart.status = 'part_submitted'
         chart.submitted_at = timezone.now()
         chart.save()
     else:
@@ -767,13 +867,17 @@ def submit_chart(request, result_id):
             user=user,
             song=bid_result.song,
             bid_result=bid_result,
-            status='submitted',
-            chart_url=serializer.validated_data.get('chart_url'),
-            chart_id_external=serializer.validated_data.get('chart_id_external'),
+            status='part_submitted',
+            designer=designer,
+            audio_file=new_audio,
+            cover_image=new_cover,
+            chart_file=new_file,
             submitted_at=timezone.now()
         )
     
-    result_serializer = ChartSerializer(chart)
+    # TODO: 这里接入上传到外部谱面托管服务的逻辑（例如 OSS/CDN ）
+    
+    result_serializer = ChartSerializer(chart, context={'request': request})
     return Response({
         'success': True,
         'message': '谱面提交成功',
@@ -803,7 +907,7 @@ def get_user_charts(request):
     
     charts = charts.select_related('song', 'bidding_round').order_by('-created_at')
     
-    serializer = ChartSerializer(charts, many=True)
+    serializer = ChartSerializer(charts, many=True, context={'request': request})
     
     return Response({
         'success': True,
@@ -956,7 +1060,7 @@ def get_chart_reviews(request, chart_id):
     
     chart = get_object_or_404(Chart, id=chart_id)
     
-    serializer = ChartDetailSerializer(chart)
+    serializer = ChartDetailSerializer(chart, context={'request': request})
     
     return Response({
         'success': True,
@@ -1010,9 +1114,39 @@ def get_round_rankings(request, round_id):
 
 # ==================== 第二轮竞标API端点 ====================
 
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
-def second_bidding_rounds(request):
+# ==================== 第二轮竞标API端点（已废弃，使用统一的竞标系统） ====================
+# 注意：以下代码已被注释，现在使用统一的BiddingRound和Bid系统来处理谱面竞标
+# 创建 BiddingRound 并设置 bidding_type='chart' 来进行谱面竞标
+
+# @api_view(['GET', 'POST'])
+# @permission_classes([IsAuthenticated])
+# def second_bidding_rounds(request):
+#     pass
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def available_charts_for_second_bidding(request, second_round_id):
+#     pass
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def submit_second_bid(request):
+#     pass
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_user_second_bids(request, second_round_id):
+#     pass
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def allocate_second_bids(request, second_round_id):
+#     pass
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_second_bid_results(request, second_round_id):
+#     pass
     """
     第二轮竞标轮次管理
     GET /api/second-bidding-rounds/ - 列出所有第二轮竞标轮次
