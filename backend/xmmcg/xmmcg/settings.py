@@ -12,21 +12,34 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+from decouple import config, Csv, Config, RepositoryEnv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# 加载环境变量文件（项目根目录的 .env 文件）
+# 支持 login_credentials.env 或 .env
+env_path = BASE_DIR.parent.parent / 'login_credentials.env'
+if not env_path.exists():
+    env_path = BASE_DIR.parent.parent / '.env'
+
+if env_path.exists():
+    config = Config(RepositoryEnv(str(env_path)))
+else:
+    # 如果 .env 文件不存在，使用默认配置（优先从系统环境变量读取）
+    pass  # config 已经导入
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-_4yj_q2kr3-x%mlu-4@j84l#r4f-8gz)9d*xid@bf*pm=2ps^r"
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-_4yj_q2kr3-x%mlu-4@j84l#r4f-8gz)9d*xid@bf*pm=2ps^r')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ["*", "testserver"]
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*,testserver', cast=Csv())
 
 
 # Application definition
@@ -201,9 +214,14 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # ========= Majdata.net Chart API Settings =========
-MAJDATA_BASE_URL = "https://majdata.net/api3/api/"
-MAJDATA_LOGIN_URL = "https://majdata.net/api3/api/account/Login"
-MAJDATA_UPLOAD_URL = "https://majdata.net/api3/api/maichart/upload"
-MAJDATA_USERNAME = os.environ.get("MAJDATA_USERNAME", "xmmcg5")
-MAJDATA_PASSWD_HASHED  = os.environ.get("MAJDATA_PASSWD_HASHED", "123")
-#TODO 实现向majnet请求登录态
+ENABLE_CHART_FORWARD_TO_MAJDATA = config('ENABLE_CHART_FORWARD_TO_MAJDATA', default=True, cast=bool)
+MAJDATA_BASE_URL = config('MAJDATA_BASE_URL', default='https://majdata.net/api3/api/')
+MAJDATA_LOGIN_URL = config('MAJDATA_LOGIN_URL', default='https://majdata.net/api3/api/account/Login')
+MAJDATA_UPLOAD_URL = config('MAJDATA_UPLOAD_URL', default='https://majdata.net/api3/api/maichart/upload')
+MAJDATA_USERNAME = config('MAJDATA_USERNAME', default='xmmcg5')
+MAJDATA_PASSWD_HASHED = config('MAJDATA_PASSWD_HASHED', default='123')
+
+
+# 注意：登录逻辑已迁移到 songs/majdata_service.py
+# 使用方法：from songs.majdata_service import MajdataService
+#          session = MajdataService.get_session()

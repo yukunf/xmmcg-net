@@ -8,6 +8,11 @@ from django.utils import timezone
 from django.http import HttpResponse
 import io
 import zipfile
+import logging
+
+from xmmcg.settings import ENABLE_CHART_FORWARD_TO_MAJDATA
+
+logger = logging.getLogger(__name__)
 import os
 
 from .models import Song, Bid, BiddingRound, BidResult, MAX_SONGS_PER_USER, MAX_BIDS_PER_USER, Banner, Announcement, CompetitionPhase, Chart
@@ -1105,8 +1110,45 @@ def submit_chart(request, result_id):
             part_one_chart=base_chart,
             completion_bid_result=bid_result
         )
-    
-    # TODO: 这里接入上传到外部谱面托管服务的逻辑（例如 OSS/CDN ）
+
+    if  ENABLE_CHART_FORWARD_TO_MAJDATA:
+        # 上传谱面到 Majdata.net
+        from .majdata_service import MajdataService
+        
+        try:
+            # 准备上传数据
+            maidata_content = ''
+            if chart.chart_file:
+                chart.chart_file.seek(0)
+                maidata_content = chart.chart_file.read()
+                if isinstance(maidata_content, bytes):
+                    maidata_content = maidata_content.decode('utf-8')
+            
+            upload_data = {
+                'maidata_content': maidata_content,
+                'audio_file': chart.song.audio_file if chart.song else None,
+                'cover_file': chart.cover_image if chart.cover_image else (chart.song.cover_image if hasattr(chart.song, 'cover_image') else None),
+                'video_file': chart.background_video if chart.background_video else None,
+                'is_part_chart': (chart.status == 'part_submitted'),
+                'folder_name': f"{chart.song.title}_{chart.user.username}" if chart.song else f"Chart_{chart.id}"
+            }
+            
+            upload_result = MajdataService.upload_chart(upload_data)
+            
+            if upload_result:
+                # 保存 Majdata.net 返回的 URL（如果有）
+                if isinstance(upload_result, dict):
+                    external_url = upload_result.get('url') or upload_result.get('chart_url') or upload_result.get('message', '')
+                    # 可以保存到 chart 对象的某个字段（需要在模型中添加）
+                    # chart.majdata_url = external_url
+                    # chart.save()
+                    logger.info(f"✅ 谱面已上传到 Majdata.net: {external_url}")
+            else:
+                logger.warning(f"⚠️ 谱面上传到 Majdata.net 失败，但本地保存成功")
+        
+        except Exception as e:
+            logger.error(f"上传到 Majdata.net 时发生错误: {e}")
+            # 不影响本地保存，继续返回成功
     
     
     result_serializer = ChartSerializer(chart, context={'request': request})
