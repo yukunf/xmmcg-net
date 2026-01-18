@@ -667,7 +667,6 @@ class PeerReviewService:
         # 创建评分记录
         review = PeerReview.objects.create(
             allocation=allocation,
-            bidding_round=allocation.bidding_round,
             reviewer=allocation.reviewer,
             chart=allocation.chart,
             score=score,
@@ -678,20 +677,18 @@ class PeerReviewService:
         allocation.status = 'completed'
         allocation.save()
         
-        # 更新谱面的评分统计
+        # 更新谱面的评分统计（仅计数，平均分后期统计）
         chart = allocation.chart
         chart.review_count += 1
         chart.total_score += score
-        chart.calculate_average_score()
         
         # 检查该谱面是否已收到所有评分
         expected_reviews = getattr(settings, 'PEER_REVIEW_TASKS_PER_USER', 8)
         if chart.review_count >= expected_reviews:
             chart.status = 'reviewed'
             chart.review_completed_at = review.created_at
-            chart.save()
-        else:
-            chart.save()
+        
+        chart.save()
         
         return review
     

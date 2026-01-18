@@ -510,10 +510,9 @@ export const getMyReviewTasks = async () => {
 export const submitReview = async (allocationId, score, comments = '') => {
   try {
     await ensureCsrfToken()
-    const response = await api.post(`/songs/peer-reviews/`, {
-      allocation_id: allocationId,
+    const response = await api.post(`/songs/peer-reviews/allocations/${allocationId}/submit/`, {
       score: score,
-      comments: comments
+      comment: comments
     })
     return response
   } catch (error) {
