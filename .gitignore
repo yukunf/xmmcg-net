@@ -1,1 +1,4 @@
-backend/xmmcg/media/songs/audio_user2_songNone_9qDGJHD.mp3
+backend/xmmcg/media/songs/*.mp3
+backend/xmmcg/media/songs/*.jpg
+backend/xmmcg/media/songs/*.png
+backend/xmmcg/media/songs/__pycache__/*.pyc
