@@ -704,7 +704,7 @@ def allocate_bids_view(request):
                     'message': '当前没有活跃的竞标轮次'
                 }, status=status.HTTP_404_NOT_FOUND)
         
-        result = BiddingService.allocate_bids(round_obj.id)
+        result = BiddingService.allocate_bids(round_obj.id, priority_self=True)
         
         return Response({
             'success': True,

@@ -19,7 +19,7 @@ class BiddingService:
     
     @staticmethod
     @transaction.atomic
-    def allocate_bids(bidding_round_id):
+    def allocate_bids(bidding_round_id, priority_self=False):
         """
         执行竞标分配逻辑（统一支持歌曲和谱面竞标）
         
@@ -31,10 +31,12 @@ class BiddingService:
            - 如果该目标（歌曲或谱面）还未被分配，将该竞标标记为中标
            - 该目标的其他竞标标记为drop
         5. 对于未获得任何目标的用户，从未被分配的目标中随机分配
+           - 如果priority_self=True且为谱面竞标，优先分配用户自己的半成品谱面
         6. 标记该轮次为已完成
         
         Args:
             bidding_round_id: 竞标轮次ID
+            priority_self: 是否优先分配自己的半成品谱面（仅谱面竞标有效，默认False）
             
         Returns:
             dict: 包含分配结果统计信息
@@ -144,7 +146,7 @@ class BiddingService:
             # 谱面竞标：只能竞标第一部分且没有完成第二部分的谱面
             all_targets = Chart.objects.filter(
                 is_part_one=True,
-                status__in=['submitted', 'reviewed']
+                status__in=['submitted', 'reviewed', 'part_submitted']
             )
             # 排除已有第二部分的谱面
             from django.db.models import OuterRef, Exists
@@ -158,6 +160,12 @@ class BiddingService:
         # 获取未被分配的目标
         unallocated_targets = list(all_target_ids - allocated_targets)
         
+        # 对于谱面竞标，预先建立chart_id到user_id的映射（优化查询）
+        chart_owner_map = {}
+        if bidding_type == 'chart' and priority_self:
+            charts_info = Chart.objects.filter(id__in=unallocated_targets).values('id', 'user_id')
+            chart_owner_map = {chart['id']: chart['user_id'] for chart in charts_info}
+        
         # 第二阶段：对于未获得任何目标的用户，随机分配（需扣除保底代币）
         # 获取参与竞标的所有用户
         bidding_users = set(bid.user.id for bid in all_bids)
@@ -165,17 +173,31 @@ class BiddingService:
         for user_id in bidding_users:
             # 检查该用户是否已经获得了目标
             if user_id not in allocated_users:
-                # 用户未获得任何目标，随机分配一个
-                if unallocated_targets:
-                    random_target_id = random.choice(unallocated_targets)
-                    user = User.objects.get(id=user_id)
-                    
+                user = User.objects.get(id=user_id)
+                target_id = None
+                
+                # 如果启用priority_self且是谱面竞标，优先分配自己的半成品谱面
+                if priority_self and bidding_type == 'chart' and unallocated_targets:
+                    # 查找该用户自己的未分配的半成品谱面
+                    user_own_charts = [
+                        chart_id for chart_id in unallocated_targets 
+                        if chart_owner_map.get(chart_id) == user_id
+                    ]
+                    if user_own_charts:
+                        target_id = random.choice(user_own_charts)
+                
+                # 如果没有找到自己的谱面（或不启用priority_self），随机分配
+                if target_id is None and unallocated_targets:
+                    target_id = random.choice(unallocated_targets)
+                
+                # 创建分配结果
+                if target_id is not None:
                     if bidding_type == 'song':
                         BidResult.objects.create(
                             bidding_round=bidding_round,
                             user=user,
                             bid_type='song',
-                            song_id=random_target_id,
+                            song_id=target_id,
                             bid_amount=RANDOM_ALLOCATION_COST,  # 保底分配需要支付代币
                             allocation_type='random'
                         )
@@ -184,13 +206,13 @@ class BiddingService:
                             bidding_round=bidding_round,
                             user=user,
                             bid_type='chart',
-                            chart_id=random_target_id,
+                            chart_id=target_id,
                             bid_amount=RANDOM_ALLOCATION_COST,
                             allocation_type='random'
                         )
                     
-                    allocated_targets.add(random_target_id)
-                    unallocated_targets.remove(random_target_id)
+                    allocated_targets.add(target_id)
+                    unallocated_targets.remove(target_id)
         
         # 标记竞标轮次为已完成
         bidding_round.status = 'completed'

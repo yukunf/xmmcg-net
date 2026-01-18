@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -203,5 +204,6 @@ AUTH_PASSWORD_VALIDATORS = [
 MAJDATA_BASE_URL = "https://majdata.net/api3/api/"
 MAJDATA_LOGIN_URL = "https://majdata.net/api3/api/account/Login"
 MAJDATA_UPLOAD_URL = "https://majdata.net/api3/api/maichart/upload"
-MAJDATA_USERNAME = "xmmcg5"
-MAJDATA_PASSWD_HASHED  = "3aaaa33751f5109a07cebc6397517415"
+MAJDATA_USERNAME = os.environ.get("MAJDATA_USERNAME", "xmmcg5")
+MAJDATA_PASSWD_HASHED  = os.environ.get("MAJDATA_PASSWD_HASHED", "123")
+#TODO 实现向majnet请求登录态
