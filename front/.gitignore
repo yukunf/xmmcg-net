@@ -25,3 +25,7 @@ dist-ssr
 
 # external files
 .mp3
+backend/xmmcg/media
+backend/xmmcg/songs/__pycache__/
+backend/xmmcg/xmmcg/__pycache__/
+backend/xmmcg/users/__pycache__/
