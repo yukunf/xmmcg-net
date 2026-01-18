@@ -32,6 +32,9 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
+    // 始终使用最新的 API 基础地址（避免在模块初始化时拿到错误端口）
+    config.baseURL = getBaseURL()
+
     // 添加 token
     const token = localStorage.getItem('token')
     if (token) {
@@ -353,6 +356,23 @@ export const submitChart = async (resultId, formData) => {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
+    })
+    return response
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 下载谱面打包（后端统一打包Zip）
+ */
+export const downloadChartBundle = async (chartId) => {
+  try {
+    const response = await api.get(`/songs/charts/${chartId}/bundle/`, {
+      responseType: 'blob',
+      timeout: 120000, // 大文件下载延长超时
+      // 不设置 Accept，避免 DRF 内容协商 406；让服务端直接返回二进制
+      withCredentials: false // 该请求不需要会话凭证，避免部分浏览器的跨域凭证限制
     })
     return response
   } catch (error) {

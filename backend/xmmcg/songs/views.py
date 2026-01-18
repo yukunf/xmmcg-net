@@ -5,8 +5,12 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.http import HttpResponse
+import io
+import zipfile
+import os
 
-from .models import Song, Bid, BiddingRound, BidResult, MAX_SONGS_PER_USER, MAX_BIDS_PER_USER, Banner, Announcement, CompetitionPhase
+from .models import Song, Bid, BiddingRound, BidResult, MAX_SONGS_PER_USER, MAX_BIDS_PER_USER, Banner, Announcement, CompetitionPhase, Chart
 from .serializers import (
     SongUploadSerializer,
     SongDetailSerializer,
@@ -372,41 +376,22 @@ def get_song_detail(request, song_id):
 def bidding_rounds_root(request):
     """
     竞标轮次管理
-    GET /api/bidding-rounds/ - 列出所有竞标轮次（从 CompetitionPhase 中提取）
+    GET /api/bidding-rounds/ - 列出所有竞标轮次（从 BiddingRound 表获取）
     """
-    # 从 CompetitionPhase 中获取竞标相关的阶段
-    # phase_key 包含 'bidding' 的阶段
-    phases = CompetitionPhase.objects.filter(
-        phase_key__icontains='bidding',
-        is_active=True
-    ).order_by('start_time')
+    # 直接从 BiddingRound 表获取所有轮次
+    bidding_rounds = BiddingRound.objects.all().order_by('-created_at')
     
-    now = timezone.now()
     data = []
-    
-    for phase in phases:
-        # 根据时间判断状态
-        if now < phase.start_time:
-            status_val = 'pending'
-        elif now > phase.end_time:
-            status_val = 'completed'
-        else:
-            status_val = 'active'
-        
-        # 计算该阶段的竞标信息
-        # 暂时返回0，后续可以通过关联 BiddingRound 来统计
-        bid_count = 0
-        
+    for round_obj in bidding_rounds:
         data.append({
-            'id': phase.id,
-            'name': phase.name,
-            'status': status_val,
-            'status_display': '待开始' if status_val == 'pending' else ('进行中' if status_val == 'active' else '已完成'),
-            'phase_key': phase.phase_key,
-            'start_time': phase.start_time,
-            'end_time': phase.end_time,
-            'description': phase.description,
-            'bid_count': bid_count,
+            'id': round_obj.id,
+            'name': round_obj.name,
+            'bidding_type': round_obj.bidding_type,
+            'status': round_obj.status,
+            'status_display': round_obj.get_status_display(),
+            'created_at': round_obj.created_at,
+            'started_at': round_obj.started_at,
+            'completed_at': round_obj.completed_at,
         })
     
     return Response({
@@ -634,6 +619,49 @@ def user_bids_root(request):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_bid_view(request, bid_id):
+    """
+    删除用户的竞标
+    DELETE /api/songs/bids/{bid_id}/
+    
+    只允许删除未完成的竞标轮次中的竞标（status='active' 或 'bidding'）
+    用户只能删除自己的竞标
+    """
+    user = request.user
+    
+    try:
+        bid = Bid.objects.get(id=bid_id)
+    except Bid.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': '竞标不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # 检查权限：只能删除自己的竞标
+    if bid.user != user:
+        return Response({
+            'success': False,
+            'message': '没有权限删除他人的竞标'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # 检查竞标轮次是否未完成
+    if bid.bidding_round.status == 'completed':
+        return Response({
+            'success': False,
+            'message': '竞标轮次已完成，无法撤回'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # 删除竞标
+    bid.delete()
+    
+    return Response({
+        'success': True,
+        'message': '竞标已撤回'
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def allocate_bids_view(request):
@@ -694,6 +722,160 @@ def allocate_bids_view(request):
             'success': False,
             'message': str(e.message) if hasattr(e, 'message') else str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_available_charts_for_round(request, round_id):
+    """
+    获取指定竞标轮次可竞标的谱面列表
+    GET /api/bidding-rounds/{round_id}/available-charts/
+    
+    仅对谱面类型的竞标轮次有效，返回所有 status='part_submitted' 的谱面
+    """
+    try:
+        round_obj = BiddingRound.objects.get(id=round_id)
+    except BiddingRound.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': '竞标轮次不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # 仅对谱面竞标轮次有效
+    if round_obj.bidding_type != 'chart':
+        return Response({
+            'success': False,
+            'message': '该轮次不是谱面竞标，无可用谱面'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    from .models import Chart
+    from .serializers import ChartSerializer
+    
+    # 获取所有半成品谱面
+    charts = Chart.objects.filter(
+        status='part_submitted'
+    ).select_related('song', 'user').order_by('-created_at')
+    
+    page = int(request.query_params.get('page', 1))
+    page_size = int(request.query_params.get('page_size', 20))
+    start = (page - 1) * page_size
+    end = start + page_size
+    
+    total_count = charts.count()
+    charts_page = charts[start:end]
+    
+    serializer = ChartSerializer(charts_page, many=True, context={'request': request})
+    
+    return Response({
+        'success': True,
+        'round': {
+            'id': round_obj.id,
+            'name': round_obj.name,
+            'bidding_type': round_obj.bidding_type,
+        },
+        'count': total_count,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total_count + page_size - 1) // page_size,
+        'results': serializer.data
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def auto_create_chart_bidding_round(request):
+    """
+    自动创建谱面竞标轮次并将所有半成品谱面作为竞标标的
+    POST /api/bidding-rounds/auto-create-chart-round/
+    
+    Admin Only
+    请求体:
+    {
+        'name': '第二轮竞标 - 谱面完成',
+        'phase_id': 3  (可选)
+    }
+    
+    实现逻辑：
+    1. 创建新的 BiddingRound，bidding_type='chart'，status='active'
+    2. 查询所有 status='part_submitted' 的谱面作为可竞标的标的
+    3. 返回创建结果和可竞标的谱面数量
+    
+    说明：
+    - 当用户进行竞标时，他们竞标的是这些半成品谱面
+    - Admin 分配竞标时，系统自动匹配用户与对应谱面
+    - 分配完成后，中标用户可见他们需要完成的谱面
+    """
+    # 验证 admin 权限
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return Response({
+            'success': False,
+            'message': '需要管理员权限'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    name = request.data.get('name')
+    phase_id = request.data.get('phase_id')
+    
+    if not name:
+        return Response({
+            'success': False,
+            'message': '缺少竞标轮次名称'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    from .models import Chart
+    from django.db import transaction
+    
+    try:
+        with transaction.atomic():
+            # 1. 创建新的谱面竞标轮次
+            phase_obj = None
+            if phase_id:
+                try:
+                    phase_obj = CompetitionPhase.objects.get(id=phase_id)
+                except CompetitionPhase.DoesNotExist:
+                    return Response({
+                        'success': False,
+                        'message': '指定的比赛阶段不存在'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            round_obj = BiddingRound.objects.create(
+                name=name,
+                bidding_type='chart',
+                status='active',
+                competition_phase=phase_obj
+            )
+            
+            # 2. 获取所有半成品谱面（status='part_submitted'）
+            half_finished_charts = Chart.objects.filter(
+                status='part_submitted'
+            ).select_related('song')
+            
+            chart_count = half_finished_charts.count()
+            
+            if chart_count == 0:
+                # 如果没有半成品谱面，删除刚创建的轮次并返回错误
+                round_obj.delete()
+                return Response({
+                    'success': False,
+                    'message': '当前没有半成品谱面可竞标'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({
+                'success': True,
+                'message': f'成功创建谱面竞标轮次，包含 {chart_count} 个半成品谱面',
+                'round': {
+                    'id': round_obj.id,
+                    'name': round_obj.name,
+                    'bidding_type': round_obj.bidding_type,
+                    'status': round_obj.status,
+                },
+                'available_charts_count': chart_count
+            }, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'创建竞标轮次失败: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -800,6 +982,9 @@ def charts_root(request):
         'results': serializer.data
     }, status=status.HTTP_200_OK)
 
+MAJNET_BASE_URL = "https://majdata.net/api3/api/"
+MAJNET_LOGIN_URL = "https://majdata.net/api3/api/account/Login"
+MAJNET_UPLOAD_URL = "https://majdata.net/api3/api/maichart/upload"
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -822,12 +1007,40 @@ def submit_chart(request, result_id):
     # 验证BidResult存在且属于当前用户
     bid_result = get_object_or_404(BidResult, id=result_id, user=user)
     
-    # 检查是否已有谱面（允许覆盖）
-    chart = Chart.objects.filter(
-        user=user,
-        song=bid_result.song,
-        bidding_round=bid_result.bidding_round
-    ).first()
+    # 计算目标歌曲（第一阶段：bid_result.song；第二阶段：bid_result.chart.song）
+    song_target = bid_result.song if bid_result.bid_type == 'song' else (bid_result.chart.song if bid_result.chart else None)
+    
+    # 检查是否已有谱面（禁止覆盖上传）
+    if bid_result.bid_type == 'song':
+        existing_chart = Chart.objects.filter(
+            user=user,
+            song=song_target,
+            bidding_round=bid_result.bidding_round,
+            is_part_one=True
+        ).first()
+        if existing_chart:
+            return Response({
+                'success': False,
+                'message': '您已提交过第一阶段的半成品谱面，无法重复上传',
+                'errors': {'chart_file': ['已提交过第一阶段谱面']}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        chart = None
+    else:
+        # 第二阶段：查找是否已有续写谱面（非第一部分），按completion_bid_result匹配
+        existing_chart = Chart.objects.filter(
+            user=user,
+            bidding_round=bid_result.bidding_round,
+            song=song_target,
+            is_part_one=False,
+            completion_bid_result=bid_result
+        ).first()
+        if existing_chart:
+            return Response({
+                'success': False,
+                'message': '您已提交过第二阶段的完成稿，无法重复上传',
+                'errors': {'chart_file': ['已提交过第二阶段谱面']}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        chart = None
     
     # 处理请求数据
     serializer = ChartCreateSerializer(data=request.data)
@@ -841,48 +1054,126 @@ def submit_chart(request, result_id):
     designer = validated.get('designer')
     new_audio = validated.get('audio_file')
     new_cover = validated.get('cover_image')
+    new_video = validated.get('background_video')
     
-    if chart:
-        # 更新现有谱面，覆盖文件并同步谱师名义
-        if new_file:
-            if chart.chart_file:
-                chart.chart_file.delete(save=False)
-            chart.chart_file = new_file
-        if new_audio:
-            if chart.audio_file:
-                chart.audio_file.delete(save=False)
-            chart.audio_file = new_audio
-        if new_cover:
-            if chart.cover_image:
-                chart.cover_image.delete(save=False)
-            chart.cover_image = new_cover
-        chart.designer = designer
-        chart.status = 'part_submitted'
-        chart.submitted_at = timezone.now()
-        chart.save()
+    # 根据竞标类型自动判断应该设置的状态
+    # bid_type='song': 歌曲竞标 → 提交半成品
+    # bid_type='chart': 谱面竞标 → 提交完成稿
+    if bid_result.bid_type == 'song':
+        target_status = 'part_submitted'
+        status_msg = '半成品'
+    elif bid_result.bid_type == 'chart':
+        target_status = 'final_submitted'
+        status_msg = '完成稿'
     else:
-        # 创建新谱面
+        # 默认为半成品（兼容性）
+        target_status = 'part_submitted'
+        status_msg = '半成品'
+    
+    # 创建新谱面（已在上方检查过不存在）
+    if bid_result.bid_type == 'song':
+        # 第一阶段：创建半成品谱面（第一部分）
         chart = Chart.objects.create(
             bidding_round=bid_result.bidding_round,
             user=user,
-            song=bid_result.song,
+            song=song_target,
             bid_result=bid_result,
-            status='part_submitted',
+            status=target_status,
             designer=designer,
             audio_file=new_audio,
             cover_image=new_cover,
+            background_video=new_video,
             chart_file=new_file,
-            submitted_at=timezone.now()
+            submitted_at=timezone.now(),
+            is_part_one=True
+        )
+    else:
+        # 第二阶段：创建续写谱面（第二部分），指向第一部分谱面
+        base_chart = bid_result.chart
+        chart = Chart.objects.create(
+            bidding_round=bid_result.bidding_round,
+            user=user,
+            song=song_target,
+            status=target_status,
+            designer=designer,
+            audio_file=new_audio,
+            cover_image=new_cover,
+            background_video=new_video,
+            chart_file=new_file,
+            submitted_at=timezone.now(),
+            is_part_one=False,
+            part_one_chart=base_chart,
+            completion_bid_result=bid_result
         )
     
     # TODO: 这里接入上传到外部谱面托管服务的逻辑（例如 OSS/CDN ）
     
+    
     result_serializer = ChartSerializer(chart, context={'request': request})
     return Response({
         'success': True,
-        'message': '谱面提交成功',
+        'message': f'谱面提交成功（{status_msg}）',
         'chart': result_serializer.data
     }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def download_chart_bundle(request, chart_id):
+    """
+    服务器端打包并下载谱面资源（音频、封面、视频、maidata.txt）。
+    GET /api/songs/charts/{chart_id}/bundle/
+    """
+    chart = get_object_or_404(Chart.objects.select_related('song', 'user'), id=chart_id)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # 谱面文件
+        if chart.chart_file and chart.chart_file.storage.exists(chart.chart_file.name):
+            with chart.chart_file.open('rb') as f:
+                zf.writestr('maidata.txt', f.read())
+
+        # 音频
+        if chart.audio_file and chart.audio_file.storage.exists(chart.audio_file.name):
+            audio_ext = os.path.splitext(chart.audio_file.name)[1].lower() or '.mp3'
+            with chart.audio_file.open('rb') as f:
+                zf.writestr(f'track{audio_ext}', f.read())
+
+        # 封面
+        if chart.cover_image and chart.cover_image.storage.exists(chart.cover_image.name):
+            cover_ext = os.path.splitext(chart.cover_image.name)[1].lower() or '.jpg'
+            with chart.cover_image.open('rb') as f:
+                zf.writestr(f'bg{cover_ext}', f.read())
+
+        # 视频（可选）
+        if chart.background_video and chart.background_video.storage.exists(chart.background_video.name):
+            # 文件名包含 bg/pv 时按名称命名，否则默认 bg.mp4
+            basename = os.path.basename(chart.background_video.name).lower()
+            target_name = 'bg.mp4'
+            if basename.startswith('pv') or 'pv.' in basename:
+                target_name = 'pv.mp4'
+            elif basename.endswith('.mp4'):
+                target_name = 'bg.mp4'
+            else:
+                # 保留原扩展名
+                target_name = 'bg' + os.path.splitext(basename)[1].lower()
+            with chart.background_video.open('rb') as f:
+                zf.writestr(target_name, f.read())
+
+    buffer.seek(0)
+
+    # 安全文件名
+    def sanitize_filename(name: str) -> str:
+        return (name or 'chart').replace('\\', '_').replace('/', '_').replace(':', '_').replace('*', '_') \
+            .replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_').strip() or 'chart'
+
+    filename = f"{sanitize_filename(chart.song.title)}_chart.zip"
+    response = HttpResponse(buffer.getvalue(), content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    # 提供范围与长度信息（有助于某些下载器）
+    response['Accept-Ranges'] = 'bytes'
+    response['Content-Length'] = str(len(buffer.getvalue()))
+    return response
 
 
 @api_view(['GET'])

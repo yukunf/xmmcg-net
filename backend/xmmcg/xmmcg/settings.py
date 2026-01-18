@@ -126,8 +126,8 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # File Upload Settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024  # 25MB (支持20MB视频文件)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024  # 25MB
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
@@ -138,6 +138,24 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'range',  # 支持范围请求，用于大文件下载
+]
+CORS_EXPOSE_HEADERS = [
+    'content-range',
+    'content-length',
+    'accept-ranges',
+]
 
 # CSRF Configuration for SPA
 CSRF_COOKIE_HTTPONLY = False  # 前端需要读取 csrftoken cookie
@@ -180,3 +198,10 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+# ========= Majdata.net Chart API Settings =========
+MAJDATA_BASE_URL = "https://majdata.net/api3/api/"
+MAJDATA_LOGIN_URL = "https://majdata.net/api3/api/account/Login"
+MAJDATA_UPLOAD_URL = "https://majdata.net/api3/api/maichart/upload"
+MAJDATA_USERNAME = "xmmcg5"
+MAJDATA_PASSWD_HASHED  = "3aaaa33751f5109a07cebc6397517415"

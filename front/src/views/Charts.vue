@@ -47,7 +47,7 @@
             :model="uploadForm" 
             :rules="uploadRules" 
             label-width="100px"
-            :disabled="uploading || !isChartingPhase"
+            :disabled="uploading || !isChartingPhase || !!myChart"
           >
             <el-alert 
               v-if="stageDescription" 
@@ -60,10 +60,11 @@
             
             <el-alert 
               v-if="myChart" 
-              title="您已上传过谱面，再次上传将覆盖旧文件" 
+              :title="isSecondStage ? '您已提交第二阶段完成稿，无法再次上传' : '您已提交第一阶段半成品，请等待第二阶段竞标'" 
               type="warning" 
               :closable="false"
               class="mb-20"
+              show-icon
             />
 
             <el-form-item label="音频文件" prop="audioFile">
@@ -159,6 +160,7 @@
                 type="primary" 
                 @click="handleUpload"
                 :loading="uploading"
+                :disabled="!!myChart"
               >
                 {{ uploadButtonText }}
               </el-button>
@@ -465,7 +467,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, Picture, VideoCamera, Document, List, Refresh, Download, Clock, TrophyBase } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
-import { getBidResults, getCharts, getMyCharts, submitChart, getCurrentPhase, getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid } from '../api'
+import { getBidResults, getCharts, getMyCharts, submitChart, getCurrentPhase, getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, downloadChartBundle } from '../api'
 
 // ==================== 数据 ====================
 const uploading = ref(false)
@@ -572,7 +574,7 @@ const stageDescription = computed(() => {
 // 计算属性：上传按钮文本
 const uploadButtonText = computed(() => {
   if (uploading.value) return '上传中...'
-  if (myChart.value) return '覆盖上传'
+  if (myChart.value) return '已提交'
   return isSecondStage.value ? '提交完成稿' : '提交半成品'
 })
 
@@ -853,15 +855,36 @@ const downloadZip = async (chart) => {
   try {
     ElMessage.info('正在准备下载谱面包，请稍候...')
 
+    // 优先使用后端打包直链下载（新窗口不会受 XHR/CORS 限制）
+    try {
+      const bundleUrl = `${window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000')}/api/songs/charts/${chart.id}/bundle/`
+      const win = window.open(bundleUrl, '_blank')
+      if (win) {
+        ElMessage.success('已在新窗口开始下载谱面包')
+        return
+      }
+    } catch (serverBundleErr) {
+      console.warn('后端打包直链下载失败，回退到前端打包：', serverBundleErr)
+    }
+
     const zip = new JSZip()
 
     const fetchAndAdd = async (url, filename) => {
       if (!url) return
       const fullUrl = resolveUrl(url)
-      const res = await fetch(fullUrl)
-      if (!res.ok) throw new Error(`下载失败: ${res.status}`)
-      const blob = await res.blob()
-      zip.file(filename, blob)
+      try {
+        const res = await fetch(fullUrl, {
+          credentials: 'include',
+          mode: 'cors',
+          cache: 'no-store'
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+        const blob = await res.blob()
+        zip.file(filename, blob)
+      } catch (e) {
+        console.error('资源下载失败:', { filename, fullUrl, error: e })
+        throw e
+      }
     }
 
     // 音频
@@ -873,17 +896,30 @@ const downloadZip = async (chart) => {
       await fetchAndAdd(chart.cover_url, `bg.${ext}`)
     }
 
-    // 视频（可选）
+    // 视频（可选，失败不阻塞整体下载）
     if (chart.video_url) {
       const videoName = chart.video_url.includes('bg') ? 'bg.mp4' : 'pv.mp4'
-      await fetchAndAdd(chart.video_url, videoName)
+      const fullUrl = resolveUrl(chart.video_url)
+      try {
+        const res = await fetch(fullUrl, {
+          credentials: 'include',
+          mode: 'cors',
+          cache: 'no-store',
+          headers: { 'Range': 'bytes=0-' }
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+        const blob = await res.blob()
+        zip.file(videoName, blob)
+      } catch (e) {
+        console.warn('视频下载失败，已跳过：', { videoName, fullUrl, error: e })
+      }
     }
 
     // 谱面文件
     await fetchAndAdd(chart.chart_file_url, 'maidata.txt')
 
     const content = await zip.generateAsync({ type: 'blob' })
-    saveAs(content, `${chart.song.title}_chart.zip`)
+    saveAs(content, `${sanitizeFilename(chart.song.title)}_chart.zip`)
     ElMessage.success('谱面包下载成功')
   } catch (error) {
     console.error('下载谱面失败:', error)
@@ -935,12 +971,17 @@ const loadMyBidResult = async () => {
           
           if (chartRes.success && chartRes.charts) {
             if (myBidResult.value.bid_type === 'song') {
-              // 第一阶段：按歌曲ID匹配
-              myChart.value = chartRes.charts.find(c => c.song?.id === myBidResult.value.song?.id)
+              // 第一阶段：按歌曲ID匹配，且is_part_one为true
+              myChart.value = chartRes.charts.find(c => 
+                c.song?.id === myBidResult.value.song?.id && c.is_part_one === true
+              )
             } else {
-              // 第二阶段（谱面竞标）：按歌曲ID或标题匹配（后端已提供 chart.song.id）
-              myChart.value = chartRes.charts.find(c => c.song?.id === myBidResult.value.chart?.song?.id)
-                || chartRes.charts.find(c => c.song?.title === (myBidResult.value.chart?.song?.title || myBidResult.value.chart?.song_title))
+              // 第二阶段（谱面竞标）：只匹配is_part_one=false的续写谱面
+              myChart.value = chartRes.charts.find(c => 
+                c.is_part_one === false &&
+                (c.song?.id === myBidResult.value.chart?.song?.id ||
+                 c.song?.title === (myBidResult.value.chart?.song?.title || myBidResult.value.chart?.song_title))
+              )
             }
             console.log('匹配的谱面:', myChart.value)
           }

@@ -38,6 +38,7 @@ urlpatterns = [
     path('charts/', views.charts_root, name='charts-root'),
     path('charts/me/', views.get_user_charts, name='get-user-charts'),
     path('charts/<int:result_id>/submit/', views.submit_chart, name='submit-chart'),
+    path('charts/<int:chart_id>/bundle/', views.download_chart_bundle, name='download-chart-bundle'),
     path('charts/<int:chart_id>/reviews/', views.get_chart_reviews, name='get-chart-reviews'),
     
     # ==================== 互评相关路由 ====================
