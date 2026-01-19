@@ -613,7 +613,30 @@ class ChartDetailSerializer(serializers.ModelSerializer):
 
 
 class BannerSerializer(serializers.ModelSerializer):
-    """Banner 序列化器"""
+    """Banner 序列化器 - 自动处理nginx反向代理下的图片URL"""
+    
+    def to_representation(self, instance):
+        """自定义序列化输出，处理图片URL"""
+        data = super().to_representation(instance)
+        
+        # 处理image_url以适配nginx反向代理
+        if data.get('image_url'):
+            image_url = data['image_url']
+            
+            # 如果是完整的localhost开发地址，转换为相对路径
+            if 'localhost:8000' in image_url:
+                # 提取路径部分（/media/... 或 /static/...）
+                import re
+                path_match = re.search(r'/(media|static)/.*$', image_url)
+                if path_match:
+                    data['image_url'] = path_match.group(0)
+            
+            # 确保相对路径以 / 开头
+            elif image_url and not image_url.startswith(('http://', 'https://', '/')):
+                data['image_url'] = f'/{image_url}'
+        
+        return data
+    
     class Meta:
         model = Banner
         fields = ('id', 'title', 'content', 'image_url', 'link', 'button_text', 'color', 'priority')
