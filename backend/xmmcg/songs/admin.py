@@ -8,17 +8,17 @@ from .models import (
 
 @admin.register(Song)
 class SongAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'user', 'created_at', 'updated_at')
+    list_display = ('id', 'title', 'user', 'file_size_display', 'created_at', 'updated_at')
     list_filter = ('created_at', 'updated_at')
     search_fields = ('title', 'user__username')
-    readonly_fields = ('unique_key', 'audio_hash', 'created_at', 'updated_at')
+    readonly_fields = ('unique_key', 'audio_hash', 'file_size', 'created_at', 'updated_at')
     
     fieldsets = (
         ('基本信息', {
             'fields': ('user', 'title', 'unique_key')
         }),
         ('媒体文件', {
-            'fields': ('audio_file', 'audio_hash', 'cover_image', 'background_video')
+            'fields': ('audio_file', 'audio_hash', 'file_size', 'cover_image', 'background_video')
         }),
         ('链接', {
             'fields': ('netease_url',)
@@ -28,6 +28,26 @@ class SongAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def file_size_display(self, obj):
+        """显示文件大小（格式化）"""
+        if obj.file_size:
+            size_mb = obj.file_size / (1024 * 1024)
+            return f'{size_mb:.2f} MB'
+        return '-'
+    file_size_display.short_description = '文件大小'
+    
+    def save_model(self, request, obj, form, change):
+        """保存时自动计算file_size"""
+        if obj.audio_file and not obj.file_size:
+            obj.file_size = obj.audio_file.size
+        
+        # 如果没有audio_hash，计算它
+        if obj.audio_file and not obj.audio_hash:
+            from .utils import calculate_file_hash
+            obj.audio_hash = calculate_file_hash(obj.audio_file)
+            
+        super().save_model(request, obj, form, change)
     
     def has_add_permission(self, request):
         return True
