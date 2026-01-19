@@ -1,13 +1,24 @@
 <template>
   <el-carousel :interval="5000" height="300px" class="banner-carousel">
     <el-carousel-item v-for="(item, index) in banners" :key="index">
-      <div class="banner-item" :style="{ backgroundColor: item.color }">
-        <div class="banner-content">
-          <h2>{{ item.title }}</h2>
-          <p>{{ item.content }}</p>
-          <el-button v-if="item.link" type="primary" size="large" @click="handleClick(item.link)">
-            {{ item.button_text || '了解更多' }}
-          </el-button>
+      <div 
+        class="banner-item" 
+        :style="{ 
+          backgroundColor: item.color,
+          backgroundImage: item.image_url ? `url(${item.image_url})` : 'none',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }"
+      >
+        <div class="banner-content-overlay">
+          <div class="banner-content">
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.content }}</p>
+            <el-button v-if="item.link" type="primary" size="large" @click="handleClick(item.link)">
+              {{ item.button_text || '了解更多' }}
+            </el-button>
+          </div>
         </div>
       </div>
     </el-carousel-item>
@@ -68,6 +79,21 @@ onMounted(() => {
 .banner-content {
   text-align: center;
   padding: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.banner-content-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
 }
 
 .banner-content h2 {
