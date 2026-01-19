@@ -55,15 +55,26 @@ class SongAdmin(admin.ModelAdmin):
 
 @admin.register(Banner)
 class BannerAdmin(admin.ModelAdmin):
-    list_display = ('title', 'is_active', 'priority', 'created_at')
+    list_display = ('title', 'is_active', 'priority', 'has_image', 'created_at')
     list_filter = ('is_active', 'created_at')
     ordering = ('-priority', '-created_at')
+    
+    def has_image(self, obj):
+        """显示是否有图片"""
+        return bool(obj.image or obj.image_url)
+    has_image.boolean = True
+    has_image.short_description = '有图片'
+    
     fieldsets = (
         ('基本信息', {
             'fields': ('title', 'content', 'button_text', 'color')
         }),
+        ('图片设置', {
+            'fields': ('image', 'image_url'),
+            'description': '推荐使用图片上传。URL字段仅用于兼容旧数据。'
+        }),
         ('链接配置', {
-            'fields': ('image_url', 'link')
+            'fields': ('link',)
         }),
         ('管理', {
             'fields': ('priority', 'is_active')

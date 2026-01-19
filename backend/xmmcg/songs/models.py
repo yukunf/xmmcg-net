@@ -24,11 +24,40 @@ MAX_VIDEO_SIZE_MB = 20          # 背景视频最大文件大小（MB）
 
 # ==================== Banner 与公告 ====================
 
+def get_banner_image_filename(instance, filename):
+    """生成Banner背景图片文件名"""
+    import os
+    from django.utils import timezone
+    
+    # 获取文件扩展名
+    ext = os.path.splitext(filename)[1].lower()
+    
+    # 生成新文件名：banner_{id}_{timestamp}{ext}
+    if instance.pk:
+        new_filename = f"banner_{instance.pk}_{timezone.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+    else:
+        # 新创建的banner，使用临时命名
+        new_filename = f"banner_new_{timezone.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+    
+    return f"banners/{new_filename}"
+
 class Banner(models.Model):
     """首页轮换 Banner"""
     title = models.CharField(max_length=100, help_text='Banner 标题')
     content = models.TextField(help_text='Banner 描述内容')
-    image_url = models.CharField(max_length=500, null=True, blank=True, help_text='背景图片 URL（支持相对路径，如 /media/banners/image.jpg）')
+    image = models.ImageField(
+        upload_to=get_banner_image_filename, 
+        null=True, 
+        blank=True, 
+        help_text='背景图片文件（推荐尺寸：1200x300px）'
+    )
+    # 保持向后兼容的URL字段
+    image_url = models.CharField(
+        max_length=500, 
+        null=True, 
+        blank=True, 
+        help_text='背景图片URL（兼容旧数据，建议使用image字段上传文件）'
+    )
     link = models.URLField(null=True, blank=True, help_text='点击跳转链接（可选）')
     button_text = models.CharField(max_length=50, default='了解更多', help_text='按钮文本')
     color = models.CharField(max_length=20, default='#409EFF', help_text='背景色')
