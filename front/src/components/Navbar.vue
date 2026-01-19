@@ -81,27 +81,35 @@
   <div v-else class="mobile-navbar">
     <div class="mobile-header">
       <div class="logo" @click="$router.push('/')">
-        <el-icon :size="20"><Trophy /></el-icon>
-        <span class="logo-text">XMMCG</span>
+        <img src="/res/xmmcglogo.png" alt="XMMCG Logo" height="24" />
       </div>
       
       <div class="mobile-actions">
-        <el-button 
-          v-if="!isLoggedIn" 
-          type="primary" 
-          size="small" 
-          @click="$router.push('/login')"
-        >
-          登录
-        </el-button>
-        <el-button 
-          v-else
-          circle 
-          size="small"
-          @click="showMobileMenu = !showMobileMenu"
-        >
-          <el-icon><UserFilled /></el-icon>
-        </el-button>
+        <template v-if="!isLoggedIn">
+          <el-button 
+            type="primary" 
+            size="small" 
+            @click="$router.push('/login')"
+          >
+            登录
+          </el-button>
+          <el-button 
+            type="success" 
+            size="small" 
+            @click="$router.push('/register')"
+          >
+            注册
+          </el-button>
+        </template>
+        <template v-else>
+          <el-button 
+            circle 
+            size="small"
+            @click="showMobileMenu = !showMobileMenu"
+          >
+            <el-icon><UserFilled /></el-icon>
+          </el-button>
+        </template>
         <el-button 
           circle 
           size="small"
@@ -332,6 +340,21 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
+.logo img {
+  height: 32px;
+  width: auto;
+}
+
+/* 移动端Logo优化 */
+.mobile-navbar .logo {
+  padding: 0;
+}
+
+.mobile-navbar .logo img {
+  height: 24px;
+  width: auto;
+}
+
 .logo-text {
   margin-left: 5px;
 }
@@ -383,6 +406,13 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.mobile-actions .el-button--small {
+  padding: 6px 12px;
+  font-size: 13px;
+  min-width: 48px;
 }
 
 .drawer-header {
@@ -394,20 +424,69 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
+/* 移动端菜单 - 确保文字和图标可见 */
 .mobile-menu {
-  border: none;
+  border: none !important;
+  background: var(--surface-color) !important;
 }
 
-.mobile-menu .el-menu-item {
-  height: 56px;
-  line-height: 56px;
-  font-size: 16px;
-  padding: 0 20px;
+.mobile-menu :deep(.el-menu) {
+  background: var(--surface-color) !important;
 }
 
-.mobile-menu .el-menu-item .el-icon {
-  font-size: 20px;
-  margin-right: 12px;
+/* 菜单项基础样式 */
+.mobile-menu :deep(.el-menu__item) {
+  height: 56px !important;
+  line-height: 56px !important;
+  font-size: 16px !important;
+  padding: 0 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  background: var(--surface-color) !important;
+  color: var(--text-primary) !important;
+  border: none !important;
+}
+
+/* 菜单项中的文字 */
+.mobile-menu :deep(.el-menu__item) span {
+  color: var(--text-primary) !important;
+  font-size: 16px !important;
+}
+
+/* 菜单项中的图标 */
+.mobile-menu :deep(.el-menu__item .el-icon) {
+  color: var(--text-primary) !important;
+  font-size: 20px !important;
+  margin-right: 12px !important;
+}
+
+.mobile-menu :deep(.el-menu__item svg) {
+  fill: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+  width: 1em !important;
+  height: 1em !important;
+}
+
+/* 菜单项悬停态 */
+.mobile-menu :deep(.el-menu__item:hover) {
+  background-color: rgba(122, 200, 255, 0.15) !important;
+  color: var(--primary-color) !important;
+}
+
+.mobile-menu :deep(.el-menu__item:hover svg) {
+  fill: var(--primary-color) !important;
+  color: var(--primary-color) !important;
+}
+
+/* 菜单项激活态 */
+.mobile-menu :deep(.el-menu__item.is-active) {
+  background-color: rgba(122, 200, 255, 0.2) !important;
+  color: var(--primary-color) !important;
+}
+
+.mobile-menu :deep(.el-menu__item.is-active svg) {
+  fill: var(--primary-color) !important;
+  color: var(--primary-color) !important;
 }
 
 .mobile-user-header {
@@ -444,13 +523,19 @@ onUnmounted(() => {
 }
 
 /* 移动端抽屉样式 */
+:deep(.el-drawer) {
+  background: var(--surface-color) !important;
+}
+
 :deep(.el-drawer__header) {
   margin-bottom: 16px;
   padding: 20px;
   border-bottom: 1px solid var(--border-color);
+  background: var(--surface-color) !important;
 }
 
 :deep(.el-drawer__body) {
-  padding: 0;
+  padding: 0 !important;
+  background: var(--surface-color) !important;
 }
 </style>
