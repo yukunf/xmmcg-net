@@ -1,5 +1,7 @@
 <template>
+  <!-- 桌面端导航栏 -->
   <el-menu
+    v-if="!isMobile"
     :default-active="activeIndex"
     mode="horizontal"
     :ellipsis="false"
@@ -7,8 +9,7 @@
     class="navbar"
   >
     <div class="logo">
-      <el-icon size="24"><Trophy /></el-icon>
-      <span class="logo-text">XMMCG</span>
+      <img src="/res/xmmcglogo.png" alt="XMMCG Logo" height="32" />
     </div>
     
     <div class="flex-grow" />
@@ -69,18 +70,152 @@
         <el-icon><User /></el-icon>
         个人中心
       </el-menu-item>
-      <el-menu-item @click="handleLogout">
+      <el-menu-item index="logout" @click="handleLogout">
         <el-icon><SwitchButton /></el-icon>
         退出登录
       </el-menu-item>
     </el-sub-menu>
   </el-menu>
+
+  <!-- 移动端导航栏 -->
+  <div v-else class="mobile-navbar">
+    <div class="mobile-header">
+      <div class="logo" @click="$router.push('/')">
+        <el-icon :size="20"><Trophy /></el-icon>
+        <span class="logo-text">XMMCG</span>
+      </div>
+      
+      <div class="mobile-actions">
+        <el-button 
+          v-if="!isLoggedIn" 
+          type="primary" 
+          size="small" 
+          @click="$router.push('/login')"
+        >
+          登录
+        </el-button>
+        <el-button 
+          v-else
+          circle 
+          size="small"
+          @click="showMobileMenu = !showMobileMenu"
+        >
+          <el-icon><UserFilled /></el-icon>
+        </el-button>
+        <el-button 
+          circle 
+          size="small"
+          @click="mobileDrawerVisible = true"
+        >
+          <el-icon><Menu /></el-icon>
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 移动端抽屉菜单 -->
+    <el-drawer
+      v-model="mobileDrawerVisible"
+      direction="rtl"
+      size="70%"
+      :show-close="false"
+    >
+      <template #header>
+        <div class="drawer-header">
+          <el-icon :size="24"><Trophy /></el-icon>
+          <span>菜单</span>
+        </div>
+      </template>
+      
+      <el-menu
+        :default-active="activeIndex"
+        @select="handleMobileSelect"
+        class="mobile-menu"
+      >
+        <el-menu-item index="/">
+          <el-icon><HomeFilled /></el-icon>
+          <span>首页</span>
+        </el-menu-item>
+        
+        <el-menu-item 
+          index="/songs"
+          :disabled="!pageAccess.songs"
+        >
+          <el-icon><Headset /></el-icon>
+          <span>歌曲</span>
+          <el-icon v-if="!pageAccess.songs" style="margin-left: auto;"><Warning /></el-icon>
+        </el-menu-item>
+        
+        <el-menu-item 
+          index="/charts"
+          :disabled="!pageAccess.charts"
+        >
+          <el-icon><Document /></el-icon>
+          <span>谱面</span>
+          <el-icon v-if="!pageAccess.charts" style="margin-left: auto;"><Warning /></el-icon>
+        </el-menu-item>
+        
+        <el-menu-item 
+          index="/eval"
+          :disabled="!pageAccess.eval"
+        >
+          <el-icon><Star /></el-icon>
+          <span>评分</span>
+          <el-icon v-if="!pageAccess.eval" style="margin-left: auto;"><Warning /></el-icon>
+        </el-menu-item>
+        
+        <el-divider v-if="isLoggedIn" />
+        
+        <el-menu-item v-if="isLoggedIn" index="/profile">
+          <el-icon><User /></el-icon>
+          <span>个人中心</span>
+        </el-menu-item>
+        
+        <el-menu-item v-if="isLoggedIn" index="logout" @click="handleLogout">
+          <el-icon><SwitchButton /></el-icon>
+          <span>退出登录</span>
+        </el-menu-item>
+        
+        <el-menu-item v-if="!isLoggedIn" index="/register" @click="handleMobileSelect('/register')">
+          <el-icon><UserFilled /></el-icon>
+          <span>注册</span>
+        </el-menu-item>
+      </el-menu>
+    </el-drawer>
+
+    <!-- 移动端用户菜单（快捷弹窗） -->
+    <el-dialog
+      v-model="showMobileMenu"
+      width="80%"
+      :show-close="false"
+      class="mobile-user-dialog"
+    >
+      <template #header>
+        <div class="mobile-user-header">
+          <el-icon><UserFilled /></el-icon>
+          <span>{{ username }}</span>
+        </div>
+      </template>
+      <div class="mobile-user-actions">
+        <el-button type="primary" @click="handleMobileSelect('/profile')" block>
+          <el-icon><User /></el-icon>
+          个人中心
+        </el-button>
+        <el-button type="danger" @click="handleLogout" block>
+          <el-icon><SwitchButton /></el-icon>
+          退出登录
+        </el-button>
+      </div>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Trophy, UserFilled, User, SwitchButton, Warning } from '@element-plus/icons-vue'
+import { 
+  Trophy, UserFilled, User, SwitchButton, Warning, Menu,
+  HomeFilled, Headset, Document, Star
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useCurrentPhase } from '../router/index.js'
 
@@ -90,6 +225,9 @@ const route = useRoute()
 const activeIndex = ref('/')
 const username = ref(localStorage.getItem('username') || '')
 const isLoggedIn = computed(() => !!localStorage.getItem('token'))
+const isMobile = ref(false)
+const mobileDrawerVisible = ref(false)
+const showMobileMenu = ref(false)
 
 const pageAccess = ref({
   home: true,
@@ -98,6 +236,11 @@ const pageAccess = ref({
   eval: true,
   profile: true
 })
+
+// 检测屏幕尺寸
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
 
 // 监听路由变化，更新激活菜单项
 watch(() => route.path, (newPath) => {
@@ -134,24 +277,40 @@ const handleSelect = (key) => {
   }
 }
 
+const handleMobileSelect = (key) => {
+  mobileDrawerVisible.value = false
+  showMobileMenu.value = false
+  handleSelect(key)
+}
+
 const handleLogout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('username')
   username.value = ''
+  mobileDrawerVisible.value = false
+  showMobileMenu.value = false
   ElMessage.success('已退出登录')
   router.push('/')
 }
 
 onMounted(() => {
   loadPhasePermissions()
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  
   // 每 30 秒刷新权限
   setInterval(() => {
     loadPhasePermissions()
   }, 30000)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 </script>
 
 <style scoped>
+/* 桌面端导航栏 */
 .navbar {
   position: sticky;
   top: 0;
@@ -198,14 +357,95 @@ onMounted(() => {
   background-color: transparent !important;
 }
 
-@media (max-width: 768px) {
-  .logo-text {
-    display: none;
-  }
-  
-  .auth-buttons {
-    gap: 5px;
-    padding: 0 10px;
-  }
+/* 移动端导航栏 */
+.mobile-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.mobile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  min-height: 60px;
+}
+
+.mobile-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #409EFF;
+}
+
+.mobile-menu {
+  border: none;
+}
+
+.mobile-menu .el-menu-item {
+  height: 56px;
+  line-height: 56px;
+  font-size: 16px;
+  padding: 0 20px;
+}
+
+.mobile-menu .el-menu-item .el-icon {
+  font-size: 20px;
+  margin-right: 12px;
+}
+
+.mobile-user-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.mobile-user-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-user-actions .el-button {
+  height: 48px;
+  font-size: 16px;
+}
+
+/* 移动端对话框样式调整 */
+:deep(.mobile-user-dialog) {
+  border-radius: 12px;
+}
+
+:deep(.mobile-user-dialog .el-dialog__header) {
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+:deep(.mobile-user-dialog .el-dialog__body) {
+  padding: 20px;
+}
+
+/* 移动端抽屉样式 */
+:deep(.el-drawer__header) {
+  margin-bottom: 16px;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+:deep(.el-drawer__body) {
+  padding: 0;
 }
 </style>

@@ -53,4 +53,16 @@ import Navbar from './components/Navbar.vue'
 .fade-leave-to {
   opacity: 0;
 }
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 12px;
+  }
+
+  .footer {
+    padding: 16px 12px;
+    font-size: 14px;
+  }
+}
 </style>

@@ -47,13 +47,6 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* 响应式布局 */
-@media (max-width: 768px) {
-  .el-main {
-    padding: 10px !important;
-  }
-}
-
 /* 自定义颜色变量 */
 :root {
   --primary-color: #409EFF;
@@ -61,4 +54,177 @@ body {
   --warning-color: #E6A23C;
   --danger-color: #F56C6C;
   --info-color: #909399;
+}
+
+/* 移动端响应式优化 */
+@media (max-width: 768px) {
+  /* 主内容区域 */
+  .el-main {
+    padding: 10px !important;
+  }
+  
+  .main-content {
+    padding: 12px !important;
+  }
+
+  /* 增大移动端字体 */
+  body {
+    font-size: 16px;
+  }
+
+  /* 卡片间距 */
+  .el-card {
+    margin-bottom: 12px;
+    border-radius: 8px;
+  }
+
+  .el-card__header {
+    padding: 16px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .el-card__body {
+    padding: 16px;
+  }
+
+  /* 按钮大小优化 */
+  .el-button {
+    min-height: 40px;
+    font-size: 15px;
+    padding: 10px 16px;
+  }
+
+  .el-button--small {
+    min-height: 36px;
+    font-size: 14px;
+    padding: 8px 14px;
+  }
+
+  .el-button--large {
+    min-height: 48px;
+    font-size: 16px;
+    padding: 12px 20px;
+  }
+
+  /* 表单元素 */
+  .el-input__inner,
+  .el-textarea__inner,
+  .el-select .el-input__inner {
+    font-size: 16px !important;
+    min-height: 44px;
+    padding: 0 15px;
+  }
+
+  .el-form-item__label {
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  /* 对话框 */
+  .el-dialog {
+    width: 90% !important;
+    margin: 20px auto !important;
+  }
+
+  .el-dialog__header {
+    padding: 20px;
+    font-size: 18px;
+  }
+
+  .el-dialog__body {
+    padding: 20px;
+    font-size: 15px;
+  }
+
+  /* 表格优化 */
+  .el-table {
+    font-size: 14px;
+  }
+
+  .el-table th,
+  .el-table td {
+    padding: 12px 8px;
+  }
+
+  /* 标签页 */
+  .el-tabs__item {
+    font-size: 15px;
+    padding: 0 16px;
+    height: 44px;
+    line-height: 44px;
+  }
+
+  /* 下拉菜单 */
+  .el-select-dropdown__item {
+    font-size: 15px;
+    padding: 0 16px;
+    height: 44px;
+    line-height: 44px;
+  }
+
+  /* 消息提示 */
+  .el-message {
+    min-width: 300px;
+    font-size: 15px;
+  }
+
+  /* 页脚 */
+  .footer {
+    padding: 16px 12px;
+    font-size: 14px;
+  }
+
+  /* 标题优化 */
+  h1 {
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+
+  h2 {
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+
+  h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  /* 触摸目标最小尺寸 */
+  a, button, .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 间距优化 */
+  .el-row {
+    margin-left: -6px !important;
+    margin-right: -6px !important;
+  }
+
+  .el-col {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+}
+
+/* 平板适配 (768px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .main-content {
+    padding: 16px;
+  }
+
+  .el-card {
+    margin-bottom: 16px;
+  }
+
+  .el-button {
+    min-height: 38px;
+  }
+
+  .el-input__inner,
+  .el-textarea__inner {
+    font-size: 15px;
+  }
 }
