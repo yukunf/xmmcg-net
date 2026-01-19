@@ -103,7 +103,7 @@ export const useCurrentPhase = async () => {
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
   // 设置页面标题
-  document.title = to.meta.title ? `${to.meta.title} - XMMCG` : 'XMMCG'
+  document.title = to.meta.title ? `${to.meta.title} -  小妹妹唱歌net` : '小妹妹唱歌net'
   
   // 检查是否需要登录
   if (to.meta.requiresAuth) {
