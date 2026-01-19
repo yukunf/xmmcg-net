@@ -39,7 +39,22 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-_4yj_q2kr3-x%mlu-4@j8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*,testserver', cast=Csv())
+# ALLOWED_HOSTS: 默认允许所有主机（开发），生产环境通过 .env 配置
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*', cast=Csv())
+
+# Production Security Settings (only enabled in production)
+if not DEBUG:
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+    SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+    SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+    CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = config('SECURE_CROSS_ORIGIN_OPENER_POLICY', default=None)
+else:
+    # Development: disable security features that require HTTPS
+    SECURE_SSL_REDIRECT = False
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = None  # Disable COOP in development
 
 
 # Application definition
@@ -190,6 +205,11 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
 ]
+
+# 从环境变量读取额外的受信任源
+EXTRA_CSRF_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+if EXTRA_CSRF_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.extend(EXTRA_CSRF_ORIGINS)
 
 if PRODUCTION_DOMAIN:
     CSRF_TRUSTED_ORIGINS.extend([

@@ -86,17 +86,52 @@ sudo nano /opt/xmmcg/.env
 
 ```env
 # Django 核心设置
-SECRET_KEY=生成的随机密钥
+SECRET_KEY=生成的随机密钥  # 由部署脚本自动生成
 DEBUG=False
 ALLOWED_HOSTS=your-domain.com,www.your-domain.com,your-server-ip
 
 # 生产域名
 PRODUCTION_DOMAIN=your-domain.com
 
-# Majdata API 配置
-MAJDATA_USERNAME=your-username
-MAJDATA_PASSWD_HASHED=your-hashed-password
+# Majdata.net API 配置（谱面自动上传功能）
+ENABLE_CHART_FORWARD_TO_MAJDATA=True  # 是否启用自动上传到 Majdata
+MAJDATA_USERNAME=xmmcg5  # Majdata 账号用户名
+MAJDATA_PASSWD_HASHED=your-password-hash  # Majdata 密码哈希值
+MAJDATA_BASE_URL=https://majdata.net/api3/api/  # 可选，默认值已配置
+MAJDATA_LOGIN_URL=https://majdata.net/api3/api/account/Login  # 可选
+MAJDATA_UPLOAD_URL=https://majdata.net/api3/api/maichart/upload  # 可选
+
+# 互评系统配置
+PEER_REVIEW_TASKS_PER_USER=8  # 每个用户需要完成的评分任务数
+PEER_REVIEW_MAX_SCORE=50  # 互评满分
 ```
+
+**Majdata 登录配置说明**：
+
+1. **密码哈希值获取方法**：
+   ```bash
+   # 方法1: 使用 Python 计算 MD5 哈希
+   echo -n "your-password" | md5sum
+   
+   # 方法2: 使用 Python 脚本
+   python3 -c "import hashlib; print(hashlib.md5('your-password'.encode()).hexdigest())"
+   ```
+
+2. **完整配置示例**：
+   ```env
+   MAJDATA_USERNAME=xmmcg5
+   MAJDATA_PASSWD_HASHED=5f4dcc3b5aa765d61d8327deb882cf99  # 示例哈希
+   ```
+
+3. **禁用 Majdata 自动上传**：
+   ```env
+   ENABLE_CHART_FORWARD_TO_MAJDATA=False
+   ```
+
+4. **配置优先级**：
+   - 环境变量（.env 文件）> settings.py 默认值
+   - 所有 Majdata 配置均可在 `/opt/xmmcg/.env` 中修改
+   - 无需修改代码即可更换账号
 
 修改后重启服务：
 ```bash
@@ -170,14 +205,22 @@ sudo certbot renew --dry-run
 
 ### 环境变量详解
 
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `SECRET_KEY` | Django 加密密钥 | 自动生成 |
-| `DEBUG` | 调试模式（生产环境必须为 False） | `False` |
-| `ALLOWED_HOSTS` | 允许访问的主机名 | `domain.com,ip` |
-| `PRODUCTION_DOMAIN` | 生产环境域名 | `xmmcg.net` |
-| `MAJDATA_USERNAME` | Majdata API 用户名 | `xmmcg5` |
-| `MAJDATA_PASSWD_HASHED` | Majdata API 密码哈希 | `your-hash` |
+| 变量名 | 说明 | 默认值 | 必填 |
+|--------|------|--------|------|
+| `SECRET_KEY` | Django 加密密钥 | 自动生成 | ✅ |
+| `DEBUG` | 调试模式 | `False` | ✅ |
+| `ALLOWED_HOSTS` | 允许访问的主机名 | `*` | ✅ |
+| `PRODUCTION_DOMAIN` | 生产环境域名 | - | ✅ |
+| `ENABLE_CHART_FORWARD_TO_MAJDATA` | 是否启用 Majdata 自动上传 | `True` | ❌ |
+| `MAJDATA_USERNAME` | Majdata 账号用户名 | `xmmcg5` | ⚠️ |
+| `MAJDATA_PASSWD_HASHED` | Majdata 密码哈希（MD5） | - | ⚠️ |
+| `MAJDATA_BASE_URL` | Majdata API 基础 URL | 已配置 | ❌ |
+| `MAJDATA_LOGIN_URL` | Majdata 登录 API | 已配置 | ❌ |
+| `MAJDATA_UPLOAD_URL` | Majdata 上传 API | 已配置 | ❌ |
+| `PEER_REVIEW_TASKS_PER_USER` | 互评任务数 | `8` | ❌ |
+| `PEER_REVIEW_MAX_SCORE` | 互评满分 | `50` | ❌ |
+
+**图例**: ✅ 必须配置 | ⚠️ 启用 Majdata 时必须 | ❌ 可选（有默认值）
 
 ---
 
