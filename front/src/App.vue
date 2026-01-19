@@ -10,7 +10,7 @@
     </main>
     <footer class="footer">
       <div class="footer-gif-container">
-        <div class="footer-gif" title="あまみはるかです！"></div>
+        <div class="footer-gif" title="あまみはるかです！" @click="showHarukaMessages"></div>
         <div class="footer-tooltip">
           <span class="tooltip-text">✧はるかっかー✧</span>
         </div>
@@ -22,6 +22,51 @@
 
 <script setup>
 import Navbar from './components/Navbar.vue'
+import { ElMessage } from 'element-plus'
+
+// 小春香的可爱消息列表
+const harukaMessages = [
+  'プロデューサーさん！ドームですよ！ドーム！',
+  'かっかー',
+  'かっかー',
+  'かっかー',
+  'かっかー',
+  'はるかっかー',
+  'はるかっかー',
+  'はるかっかー',
+  'はるかっかー',
+  'かっかー',
+  'かっかー',
+  'かっかー',
+  'かっかー',
+  'はるかっかー',
+  'はるかっかー',
+  'はるかっかー',
+  'はるかっかー',
+]
+
+let messageIndex = 0
+
+const showHarukaMessages = () => {
+  // 连续显示3个随机消息
+  const messageCount = Math.floor(Math.random() * 3) + 2 // 2-4个消息
+  
+  for (let i = 0; i < messageCount; i++) {
+    setTimeout(() => {
+      const randomMessage = harukaMessages[Math.floor(Math.random() * harukaMessages.length)]
+      
+      ElMessage({
+        message: randomMessage,
+        type: 'success',
+        duration: 3000 + (i * 500), // 每个消息显示时间递增
+        showClose: true,
+        center: false,
+        customClass: 'haruka-message',
+        offset: 80 + (i * 60) // 每个消息向下偏移
+      })
+    }, i * 400) // 每个消息间隔400ms出现
+  }
+}
 </script>
 
 <style scoped>
@@ -147,6 +192,44 @@ import Navbar from './components/Navbar.vue'
   opacity: 0;
 }
 
+/* 自定义小春香消息样式 */
+:deep(.haruka-message) {
+  background: linear-gradient(135deg, #ff6b9d, #ffa8cc) !important;
+  border: 2px solid #ff85b3 !important;
+  color: white !important;
+  font-weight: 500 !important;
+  box-shadow: 0 4px 20px rgba(255, 107, 157, 0.5) !important;
+  border-radius: 20px !important;
+  animation: haruka-popup 0.4s ease-out !important;
+}
+
+:deep(.haruka-message .el-message__content) {
+  color: white !important;
+  font-weight: 500 !important;
+}
+
+:deep(.haruka-message .el-message__closeBtn) {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+:deep(.haruka-message .el-message__closeBtn:hover) {
+  color: white !important;
+}
+
+@keyframes haruka-popup {
+  0% {
+    transform: translateY(-20px) scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(-5px) scale(1.05);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
 /* 移动端优化 */
 @media (max-width: 768px) {
   .main-content {
@@ -167,8 +250,8 @@ import Navbar from './components/Navbar.vue'
   .tooltip-text {
     font-size: 11px;
     padding: 6px 10px;
-    max-width: 200px;
-    white-space: normal;
+    /* 移除max-width和white-space限制，保持原始长度 */
+    white-space: nowrap;
     text-align: center;
     line-height: 1.3;
   }

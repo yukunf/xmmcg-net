@@ -384,12 +384,16 @@ class BiddingService:
                 profile, created = UserProfile.objects.get_or_create(user=result.user)
                 
                 # 验证代币足够
-                if (profile.token < result.bid_amount) and not ignore_token_overshoot:
-                    failed_users.append({
-                        'user': result.user.username,
-                        'required': result.bid_amount,
-                        'available': profile.token
-                    })
+                if (profile.token < result.bid_amount):
+                    if not ignore_token_overshoot:
+                        failed_users.append({
+                            'user': result.user.username,
+                            'required': result.bid_amount,
+                            'available': profile.token
+                        })
+                    else:
+                        profile.token = 0 # 扣光代币，不报错
+                        profile.save()
                     continue
                 
                 # 扣除代币
