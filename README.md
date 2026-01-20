@@ -4,6 +4,9 @@
 ：我能在不懂一行vue的情况下写出一个网站吗？
 ：可以，但是我要死了
 
+--
+**技术栈**：前端Vue.js + Element Plus（控件样式），后端Django + Pillow库处理图片。部署使用debian服务器+常规的gunicron作为WSGI + nginx转发。（不过我被nginx折磨得要死）
+
 ## 环境变量配置
 
 项目使用 **python-decouple** 管理敏感配置信息，避免将密钥硬编码在代码中。
