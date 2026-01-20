@@ -128,6 +128,7 @@
       direction="rtl"
       size="70%"
       :show-close="false"
+      append-to-body
     >
       <template #header>
         <div class="drawer-header">
