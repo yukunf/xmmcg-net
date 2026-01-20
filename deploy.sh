@@ -26,6 +26,7 @@ FRONTEND_DIST_DIR="/var/www/xmmcg/frontend"
 LOG_DIR="/var/log/gunicorn"
 SOCKET_DIR="/var/run/gunicorn"
 
+
 echo "📦 步骤 1/10: 更新系统包..."
 apt-get update
 apt-get upgrade -y
@@ -189,5 +190,7 @@ echo "  - 网站首页: http://$SERVER_IP"
 echo "  - 管理后台: http://$SERVER_IP/admin/"
 echo "  - API 文档: http://$SERVER_IP/api/"
 echo ""
+echo "可选：下载1Panel，以获得更好的监视"
+echo "请执行 bash -c "$(curl -sSL https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh)""
 echo "📝 更新代码请运行: sudo bash /opt/xmmcg/update.sh"
 echo ""

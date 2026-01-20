@@ -78,6 +78,8 @@
   </el-menu>
 
   <!-- 移动端导航栏 -->
+   <!-- FIXME 其实并不是菜单栏的元素是透明，而是被压在了剩余的组件下！根据观察，菜单下面的内容应该是
+    被压在了所有组件，和背景图片之下。需要调整-->
   <div v-else class="mobile-navbar">
     <div class="mobile-header">
       <div class="logo" @click="$router.push('/')">
