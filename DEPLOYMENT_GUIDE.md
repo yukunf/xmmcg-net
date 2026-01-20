@@ -420,14 +420,85 @@ Bash
 cd /opt/xmmcg/backend
 source /opt/xmmcg/venv/bin/activate
 
-# 步骤 1: 生成图纸 (必须指定 App 名字，例如 songs)
+#### 步骤 1: 生成图纸 (必须指定 App 名字，例如 songs)
 python manage.py makemigrations songs
 
-# 步骤 2: 开始施工
+#### 步骤 2: 开始施工
 python manage.py migrate songs
 
-# 步骤 3: 重启服务
+#### 步骤 3: 重启服务
 sudo systemctl restart gunicorn
+
+---
+
+### 3. 管理员账户登录失败 (Invalid Password / Hash Mismatch)
+
+#### 现象
+* 使用 `createsuperuser` 创建的账户无法登录 Admin，提示密码错误。
+* 或者创建时报错哈希算法相关错误。
+
+#### 原因
+在命令行直接运行 `createsuperuser` 时，如果未正确加载环境变量（`.env`），Django 可能会使用默认或空的 `SECRET_KEY` 进行密码哈希。而 Gunicorn 运行时加载了正确的 `.env`，导致两边的哈希“盐”不一致，密码无法匹配。
+
+#### 解决方案
+使用 Python 脚本，在加载了完整 Django 环境和环境变量的上下文中重置密码。
+
+**操作步骤：**
+
+1. 创建脚本 `ensure_admin.py`：
+
+```python
+import os, sys, django
+sys.path.append('/opt/xmmcg/backend')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'xmmcg.settings')
+django.setup()
+
+from django.contrib.auth import get_user_model
+User = get_user_model()
+u, _ = User.objects.get_or_create(username='admin')
+u.set_password('你的强密码')  # 这里会使用正确的 SECRET_KEY 进行哈希
+u.is_superuser = True
+u.is_staff = True
+u.save()
+print("✅ Password reset successfully.")
+```
+
+2. **关键：带环境变量执行脚本**：
+
+```bash
+cd /opt/xmmcg/backend
+# 导出 .env 变量 -> 激活环境 -> 运行脚本
+set -a; source /opt/xmmcg/.env; set +a; /opt/xmmcg/venv/bin/python ensure_admin.py
+```
+
+---
+
+### 4. 常用调试命令速查表
+
+当遇到未知 500 错误时，按以下顺序操作：
+
+**1. 查看实时错误日志 (最有效)**
+```bash
+# 能够看到具体的 Python Traceback
+sudo tail -f -n 50 /var/log/gunicorn/error.log
+```
+
+**2. 临时开启 Debug 模式**
+如果日志看不清，可以临时让页面显示报错黄页。
+* 修改 `.env`: `DEBUG=True`
+* 重启: `sudo systemctl restart gunicorn`
+* **注意**: 调试完必须改回 `False`！
+
+**3. 检查 Nginx 转发**
+```bash
+sudo tail -f -n 50 /var/log/nginx/xmmcg_error.log
+```
+
+**4. 检查服务状态**
+```bash
+sudo systemctl status gunicorn
+sudo systemctl status nginx
+```
 
 ---
 
