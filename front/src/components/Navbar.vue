@@ -129,6 +129,7 @@
       size="70%"
       :show-close="false"
       append-to-body
+      class="custom-mobile-drawer"
     >
       <template #header>
         <div class="drawer-header">
@@ -198,7 +199,7 @@
       v-model="showMobileMenu"
       width="80%"
       :show-close="false"
-      class="mobile-user-dialog"
+      class="custom-mobile-dialog"
     >
       <template #header>
         <div class="mobile-user-header">
@@ -540,5 +541,70 @@ onUnmounted(() => {
 :deep(.el-drawer__body) {
   padding: 0 !important;
   background: var(--surface-color) !important;
+}
+</style>
+
+<style>
+/* 注意：这里没有 scoped，且使用具体的类名 .custom-mobile-drawer 避免污染全局 */
+
+/* === 抽屉样式修复 === */
+.custom-mobile-drawer {
+  background: var(--surface-color) !important;
+}
+
+.custom-mobile-drawer .el-drawer__header {
+  margin-bottom: 16px;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--surface-color) !important;
+  color: var(--text-primary);
+}
+
+.custom-mobile-drawer .el-drawer__body {
+  padding: 0 !important;
+  background: var(--surface-color) !important;
+}
+
+/* 抽屉内的菜单样式 */
+.custom-mobile-drawer .mobile-menu {
+  border: none !important;
+  background: var(--surface-color) !important;
+}
+
+.custom-mobile-drawer .el-menu-item {
+  height: 56px;
+  line-height: 56px;
+  font-size: 16px;
+  padding: 0 20px;
+  background: var(--surface-color);
+  color: var(--text-primary);
+}
+
+.custom-mobile-drawer .el-menu-item .el-icon {
+  margin-right: 12px;
+  font-size: 18px;
+}
+
+/* === 弹窗对话框样式修复 === */
+.custom-mobile-dialog {
+  border-radius: 12px;
+  background: var(--surface-color) !important;
+  max-width: 320px; /* 限制最大宽度，防止手机上太宽 */
+}
+
+.custom-mobile-dialog .el-dialog__header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  margin-right: 0;
+}
+
+.custom-mobile-dialog .el-dialog__body {
+  padding: 20px;
+}
+
+/* 确保文字颜色正确（因为移出 #app 后可能丢失父级文字颜色设置） */
+.custom-mobile-drawer, 
+.custom-mobile-dialog {
+  color: var(--text-primary, #333); 
 }
 </style>
