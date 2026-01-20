@@ -268,3 +268,6 @@ MAJDATA_PASSWD_HASHED = config('MAJDATA_PASSWD_HASHED', default='123')
 # 互评系统配置
 PEER_REVIEW_TASKS_PER_USER = config('PEER_REVIEW_TASKS_PER_USER', default=8, cast=int)  # 每个用户需要完成的评分任务数
 PEER_REVIEW_MAX_SCORE = config('PEER_REVIEW_MAX_SCORE', default=50, cast=int)  # 互评满分
+# ==================== 可配置常量 ====================
+# 新用户注册时获得的默认代币数量
+DEFAULT_USER_TOKENS = 1000

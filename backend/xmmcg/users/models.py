@@ -1,9 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-# ==================== 可配置常量 ====================
-# 新用户注册时获得的默认代币数量
-DEFAULT_USER_TOKENS = 1000
+from xmmcg.settings import DEFAULT_USER_TOKENS
 
 
 class UserProfile(models.Model):
