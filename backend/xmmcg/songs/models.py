@@ -28,7 +28,7 @@ class Banner(models.Model):
     """首页轮换 Banner"""
     title = models.CharField(max_length=100, help_text='Banner 标题')
     content = models.TextField(help_text='Banner 描述内容')
-    image_url = models.URLField(null=True, blank=True, help_text='背景图片 URL（可选）')
+    image_url = models.CharField(null=True, blank=True, help_text='背景图片 URL（可选）')
     link = models.URLField(null=True, blank=True, help_text='点击跳转链接（可选）')
     button_text = models.CharField(max_length=50, default='了解更多', help_text='按钮文本')
     color = models.CharField(max_length=20, default='#409EFF', help_text='背景色')
