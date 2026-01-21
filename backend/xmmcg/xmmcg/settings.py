@@ -153,7 +153,10 @@ STATIC_ROOT = "/var/www/xmmcg/static"  # 生产环境静态文件收集目录
 
 # Media Files Configuration
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+if not DEBUG:
+    MEDIA_ROOT = Path('/var/www/xmmcg/media')
+else:
+    MEDIA_ROOT = BASE_DIR / "media"
 
 # File Upload Settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024  # 25MB (支持20MB视频文件)
