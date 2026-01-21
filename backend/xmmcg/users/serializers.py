@@ -6,6 +6,7 @@ from .models import UserProfile
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    qqid = serializers.CharField(required=True, write_only=True)
     """用户注册序列化器"""
     password = serializers.CharField(
         write_only=True,
@@ -79,7 +80,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     token = serializers.SerializerMethodField()
     songsCount = serializers.SerializerMethodField()
     chartsCount = serializers.SerializerMethodField()
-    
+    qqid = serializers.CharField(source='profile.qqid', read_only=True)
     class Meta:
         model = User
         fields = ('username', 'qqid', 'email', 'is_active', 'date_joined', 'token', 'songsCount', 'chartsCount')

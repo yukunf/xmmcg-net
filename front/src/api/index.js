@@ -107,11 +107,12 @@ export const login = async (username, password) => {
 /**
  * 用户注册
  */
-export const register = async (username, email, password, passwordConfirm) => {
+export const register = async (username, qqid, email, password, passwordConfirm) => {
   try {
     await ensureCsrfToken()
     const response = await api.post('/users/register/', {
       username,
+      qqid,
       email,
       password,
       password_confirm: passwordConfirm
