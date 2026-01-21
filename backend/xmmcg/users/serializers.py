@@ -21,7 +21,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'password_confirm')
+        fields = ('username', 'qqid', 'email', 'password', 'password_confirm')
         extra_kwargs = {
             'email': {'required': True},
         }
@@ -55,7 +55,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         # 创建用户资料（包含 token）
-        UserProfile.objects.create(user=user, token=0)
+        UserProfile.objects.create(user=user, qqid=validated_data.get('qqid', ''), token=0)
         return user
 
 
@@ -76,7 +76,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('username', 'email', 'is_active', 'date_joined', 'token', 'songsCount', 'chartsCount')
+        fields = ('username', 'qqid', 'email', 'is_active', 'date_joined', 'token', 'songsCount', 'chartsCount')
         read_only_fields = ('username', 'date_joined', 'token', 'songsCount', 'chartsCount')
     
     def get_token(self, obj):

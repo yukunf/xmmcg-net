@@ -26,4 +26,5 @@ urlpatterns = [
     # 验证相关
     path('check-username/', views.check_username_availability, name='check_username_availability'),
     path('check-email/', views.check_email_availability, name='check_email_availability'),
+    path('check-qqid/', views.check_qqid_availability, name='check_qqid_availability'),
 ]

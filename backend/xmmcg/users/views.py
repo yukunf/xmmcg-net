@@ -203,6 +203,29 @@ def check_username_availability(request):
         'available': not exists,
         'username': username
     }, status=status.HTTP_200_OK)
+    
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def check_qqid_availability(request):
+    """
+    检查QQ号是否可用
+    POST: 
+        qqid: 要检查的QQ号
+    """
+    qqid = request.data.get('qqid', '').strip()
+    
+    if not qqid:
+        return Response({
+            'success': False,
+            'message': 'QQ号不能为空'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    exists = UserProfile.objects.filter(qqid=qqid).exists()
+    return Response({
+        'success': True,
+        'available': not exists,
+        'qqid': qqid
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
