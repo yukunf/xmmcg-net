@@ -359,6 +359,63 @@
                 <el-collapse-transition>
                   <div v-show="expandedSongs.includes(song.id)" class="song-details">
                     <el-divider />
+                    <div class="bids-section">
+      <div class="section-title">
+        <span>当前竞标行情</span>
+        <el-tag v-if="songBidsMap[song.id]?.count" size="small" type="info" round>
+          {{ songBidsMap[song.id]?.count }} 人出价
+        </el-tag>
+        <el-button 
+          v-if="expandedSongs.includes(song.id)"
+          link 
+          type="primary" 
+          size="small" 
+          :icon="Refresh"
+          :loading="songBidsMap[song.id]?.loading"
+          @click="fetchSongBids(song.id)"
+          style="margin-left: auto;"
+        >
+          刷新
+        </el-button>
+      </div>
+
+      <el-skeleton v-if="songBidsMap[song.id]?.loading && !songBidsMap[song.id]?.list.length" :rows="2" animated />
+
+      <div v-else-if="!songBidsMap[song.id]?.list || songBidsMap[song.id]?.list.length === 0" class="no-bids">
+        <el-text type="info" size="small">暂无竞标记录，快来抢占第一吧！</el-text>
+      </div>
+
+      <el-table 
+        v-else 
+        :data="songBidsMap[song.id]?.list" 
+        size="small" 
+        style="width: 100%; margin-bottom: 15px;"
+        max-height="200"
+        :row-class-name="({ row }) => row.is_self ? 'my-bid-row' : ''"
+      >
+        <el-table-column prop="username" label="用户" width="120">
+          <template #default="{ row }">
+            <span v-if="row.is_self" style="font-weight: bold; color: #409EFF;">(我) {{ row.username }}</span>
+            <span v-else>{{ row.username }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="amount" label="出价" width="100">
+          <template #default="{ row }">
+            <span style="font-weight: bold; color: #E6A23C;">{{ row.amount }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="时间" min-width="140">
+          <template #default="{ row }">
+            <span style="font-size: 12px; color: #909399;">{{ formatDate(row.created_at) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+    <el-divider style="margin: 10px 0;" />
+    <div class="detail-item">
+      <el-text type="info">上传时间：</el-text>
+      <el-text>{{ formatDate(song.created_at) }}</el-text>
+    </div>
                     
                     <div class="detail-item">
                       <el-text type="info">上传时间：</el-text>
@@ -546,7 +603,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { 
   getSongs, uploadSong, getMySongs, updateSong, deleteSong,
-  getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid
+  getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, getTargetBids
 } from '@/api'
 import { parseBlob } from 'music-metadata'
 
@@ -606,6 +663,7 @@ const bidsLoading = ref(false)
 const currentBidRound = ref(null)
 const myBids = ref([])
 const maxBids = ref(5)
+const songBidsMap = ref({})
 
 // 歌曲列表
 const songsLoading = ref(false)
@@ -955,12 +1013,46 @@ const loadSongs = async () => {
 }
 
 // 切换卡片展开状态
-const toggleExpand = (songId) => {
+const toggleExpand = async (songId) => {
   const index = expandedSongs.value.indexOf(songId)
+  
   if (index > -1) {
+    // 收起
     expandedSongs.value.splice(index, 1)
   } else {
+    // 展开
     expandedSongs.value.push(songId)
+    
+    // 展开时获取竞标行情
+    await fetchSongBids(songId)
+  }
+}
+
+// 新增：获取单首歌曲的竞标数据
+const fetchSongBids = async (songId) => {
+  // 初始化该歌曲的数据结构
+  if (!songBidsMap.value[songId]) {
+    songBidsMap.value[songId] = { loading: true, list: [], count: 0 }
+  }
+  
+  songBidsMap.value[songId].loading = true
+  
+  try {
+    const res = await getTargetBids({ song_id: songId })
+    if (res.success) {
+      songBidsMap.value[songId].list = res.results || []
+      songBidsMap.value[songId].count = res.count || 0
+      
+      // 如果后端返回了 round 信息，也可以存下来显示
+      // songBidsMap.value[songId].roundName = res.round?.name
+    }
+  } catch (error) {
+    console.error(`获取歌曲 ${songId} 竞标行情失败:`, error)
+    // 可以选择不弹窗报错，以免打扰用户，只在控制台记录
+  } finally {
+    if (songBidsMap.value[songId]) {
+      songBidsMap.value[songId].loading = false
+    }
   }
 }
 
@@ -1667,5 +1759,38 @@ onMounted(async () => {
     padding: 4px 8px;
     font-size: 12px;
   }
+}
+/**
+  * 竞标部分样式
+ */
+.bids-section {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #606266;
+}
+
+.no-bids {
+  padding: 15px 0;
+  text-align: center;
+}
+
+/* 高亮我的出价行 */
+:deep(.el-table .my-bid-row) {
+  background-color: #f0f9eb !important; /* 浅绿色背景 */
+}
+
+:deep(.el-table .my-bid-row:hover > td.el-table__cell) {
+  background-color: #e1f3d8 !important;
 }
 </style>

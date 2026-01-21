@@ -174,7 +174,7 @@
             </el-form-item>
           </el-form>
         </el-card>
-
+        <!-- TODO 校验只有完成了前半的谱师才能竞标，还是放开？现在是放开的没有校验，还是加上吧之后。-->
         <!-- 2. 我的谱面竞标组件 -->
         <el-card class="my-bids-card" shadow="hover">
           <template #header>

@@ -523,6 +523,7 @@ class Bid(models.Model):
         return self.song if self.bid_type == 'song' else self.chart
 
 
+
 class BidResult(models.Model):
     """竞标结果（分配结果）"""
     
