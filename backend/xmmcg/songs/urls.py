@@ -29,6 +29,7 @@ urlpatterns = [
     # 用户竞标管理
     path('bids/', views.user_bids_root, name='user-bids-root'),
     path('bids/<int:bid_id>/', views.delete_bid_view, name='delete-bid'),
+    path('bids/target/', views.target_bids_list, name='target_bids_list'),
     path('bids/allocate/', views.allocate_bids_view, name='allocate-bids'),
     
     # 竞标结果

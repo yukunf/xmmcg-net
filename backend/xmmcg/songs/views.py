@@ -10,6 +10,7 @@ from django.conf import settings
 import io
 import zipfile
 import logging
+import hashlib
 
 from xmmcg.settings import ENABLE_CHART_FORWARD_TO_MAJDATA
 
@@ -627,6 +628,129 @@ def user_bids_root(request):
                 'success': False,
                 'message': str(e.message) if hasattr(e, 'message') else str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+            
+            
+from .models import BiddingRound, CompetitionPhase, Bid, Song, Chart 
+# 如果有 User Serializer 可以导入，或者使用下面定义的简单 Serializer
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def target_bids_list(request):
+    """
+    获取特定目标（歌曲/谱面）在特定轮次的所有竞标记录（行情列表）
+    GET /api/bids/target/?song_id=1&round_id=5
+    GET /api/bids/target/?chart_id=2&round_id=5
+    """
+    song_id = request.query_params.get('song_id')
+    chart_id = request.query_params.get('chart_id')
+    round_id = request.query_params.get('round_id')
+
+    # 1. 参数验证：必须指定 song_id 或 chart_id 之一
+    if not (song_id or chart_id):
+        return Response({'success': False, 'message': '必须提供 song_id 或 chart_id'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if song_id and chart_id:
+        return Response({'success': False, 'message': '无法同时查询歌曲和谱面'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. 获取竞标轮次 (BiddingRound)
+    # 逻辑简化：如果没传 round_id，自动找当前活跃的。
+    # 既然是查行情，通常不涉及创建轮次，只查存在的。
+    round_obj = None
+    
+    if round_id:
+        # 优先尝试直接获取 BiddingRound
+        try:
+            round_obj = BiddingRound.objects.get(id=round_id)
+        except BiddingRound.DoesNotExist:
+            # 尝试通过 Phase ID 获取
+            try:
+                phase = CompetitionPhase.objects.get(id=round_id)
+                # 能够查询歌曲，说明是 song 类型；反之亦然
+                b_type = 'song' if song_id else 'chart'
+                round_obj = phase.bidding_rounds.filter(bidding_type=b_type).first()
+            except CompetitionPhase.DoesNotExist:
+                return Response({'success': False, 'message': '轮次不存在'}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        # 未指定轮次，查找当前活跃轮次
+        now = timezone.now()
+        b_type = 'song' if song_id else 'chart'
+        phase_key_filter = 'bidding' if b_type == 'song' else 'second_bidding'
+        
+        active_phase = CompetitionPhase.objects.filter(
+            phase_key__icontains=phase_key_filter,
+            is_active=True,
+            start_time__lte=now,
+            end_time__gte=now
+        ).first()
+
+        if active_phase:
+            round_obj = active_phase.bidding_rounds.filter(bidding_type=b_type).first()
+
+    if not round_obj:
+        return Response({
+            'success': True, 
+            'message': '当前没有活跃的竞标轮次', 
+            'results': []
+        }, status=status.HTTP_200_OK)
+
+    # 3. 验证目标是否存在 (可选，但为了严谨性建议加上)
+    target_title = ""
+    if song_id:
+        song = get_object_or_404(Song, id=song_id)
+        target_title = song.title
+    elif chart_id:
+        chart = get_object_or_404(Chart, id=chart_id)
+        target_title = f"{chart.song.title} ({chart.user.username})"
+
+    # 4. 查询所有竞标
+    # 注意：这里我们获取该目标的 *所有* 有效竞标
+    bids_qs = Bid.objects.filter(
+        bidding_round=round_obj,
+        is_dropped=False  # 通常看行情只看有效的，如果需要看历史记录可以去掉这个
+    )
+
+    if song_id:
+        bids_qs = bids_qs.filter(song_id=song_id)
+    else:
+        bids_qs = bids_qs.filter(chart_id=chart_id)
+
+    # 排序：金额降序，时间升序（先出价的排前面）
+    bids_qs = bids_qs.order_by('-amount', 'created_at').select_related('user')
+
+    # 5. 手动序列化 (比用 Serializer 更灵活，且只需返回前端需要的字段)
+    results = []
+    current_user = request.user
+
+    for bid in bids_qs:
+        raw_username = bid.user.username
+        hash_obj = hashlib.md5(raw_username.encode('utf-8'))
+        anonymous_name = hash_obj.hexdigest()[:6].upper()
+        results.append({
+            'id': bid.id,
+            'amount': bid.amount,
+            'username': anonymous_name,  # 显示匿名用户名
+            # 'user_id': bid.user.id,       # 如果需要点击跳转用户主页
+            'created_at': bid.created_at,
+            'is_self': bid.user == current_user,  # 关键字段：是否是当前用户
+            'is_dropped': bid.is_dropped
+        })
+
+    return Response({
+        'success': True,
+        'round': {
+            'id': round_obj.id,
+            'name': round_obj.name,
+            'status': round_obj.status
+        },
+        'target': {
+            'id': song_id or chart_id,
+            'type': 'song' if song_id else 'chart',
+            'title': target_title
+        },
+        'count': len(results),
+        'results': results
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['DELETE'])

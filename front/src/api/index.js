@@ -260,6 +260,19 @@ export const getBiddingRounds = async () => {
     throw error
   }
 }
+/**
+ * 获取特定目标的竞标行情
+ * @param {Object} params - { song_id: number, chart_id: number, round_id: number }
+ */
+export const getTargetBids = async (params) => {
+  try {
+    // 这里的路径会自动拼接 baseURL (/api) 变为 /api/songs/bids/target/
+    const response = await api.get('/songs/bids/target/', { params })
+    return response
+  } catch (error) {
+    throw error
+  }
+}
 
 /**
  * 获取当前用户的竞标列表
@@ -507,6 +520,7 @@ export const getMyReviewTasks = async () => {
     throw error
   }
 }
+
 
 /**
  * 提交互评分数

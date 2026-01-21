@@ -359,6 +359,65 @@
                 <el-collapse-transition>
                   <div v-show="expandedSongs.includes(song.id)" class="song-details">
                     <el-divider />
+                    <div class="bids-section">
+      <div class="section-title">
+        <span>当前竞标行情</span>
+        <el-tag v-if="songBidsMap[song.id]?.count" size="small" type="info" round>
+          {{ songBidsMap[song.id]?.count }} 人出价
+        </el-tag>
+        <el-button 
+          v-if="expandedSongs.includes(song.id)"
+          link 
+          type="primary" 
+          size="small" 
+          :icon="Refresh"
+          :loading="songBidsMap[song.id]?.loading"
+          @click="fetchSongBids(song.id)"
+          style="margin-left: auto;"
+        >
+          刷新
+        </el-button>
+      </div>
+
+      <el-skeleton v-if="songBidsMap[song.id]?.loading && !songBidsMap[song.id]?.list.length" :rows="2" animated />
+
+      <div v-else-if="!songBidsMap[song.id]?.list || songBidsMap[song.id]?.list.length === 0" class="no-bids">
+        <el-text type="info" size="small">暂无竞标记录，快来抢占第一吧！</el-text>
+      </div>
+
+      <el-table 
+        v-else 
+        :data="songBidsMap[song.id]?.list" 
+        size="small" 
+        style="width: 100%; margin-bottom: 15px;"
+        max-height="200"
+        :row-class-name="({ row }) => row.is_self ? 'my-bid-row' : ''"
+      >
+        <el-table-column prop="username" label="用户" width="120">
+          <template #default="{ row }">
+            <span v-if="row.is_self" class="highlight-self">(我) #{{ row.username }}</span>
+            <span v-else>#{{ row.username }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="amount" label="出价" width="100">
+          <template #default="{ row }">
+            <span class="highlight-price">{{ row.amount }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="created_at" label="时间" min-width="140">
+          <template #default="{ row }">
+            <span class="time-text">{{ formatDate(row.created_at) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+    <el-divider style="margin: 10px 0;" />
+    <div class="detail-item">
+      <el-text type="info">上传时间：</el-text>
+      <el-text>{{ formatDate(song.created_at) }}</el-text>
+    </div>
                     
                     <div class="detail-item">
                       <el-text type="info">上传时间：</el-text>
@@ -546,7 +605,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { 
   getSongs, uploadSong, getMySongs, updateSong, deleteSong,
-  getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid
+  getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, getTargetBids
 } from '@/api'
 import { parseBlob } from 'music-metadata'
 
@@ -606,6 +665,7 @@ const bidsLoading = ref(false)
 const currentBidRound = ref(null)
 const myBids = ref([])
 const maxBids = ref(5)
+const songBidsMap = ref({})
 
 // 歌曲列表
 const songsLoading = ref(false)
@@ -953,14 +1013,58 @@ const loadSongs = async () => {
     songsLoading.value = false
   }
 }
-
-// 切换卡片展开状态
-const toggleExpand = (songId) => {
+// 切换卡片展开状态（调试版）
+const toggleExpand = async (songId) => {
   const index = expandedSongs.value.indexOf(songId)
   if (index > -1) {
     expandedSongs.value.splice(index, 1)
   } else {
     expandedSongs.value.push(songId)
+    // 展开时获取竞标行情
+    await fetchSongBids(songId)
+  }
+}
+
+const fetchSongBids = async (songId) => {
+  if (!songBidsMap.value[songId]) {
+    songBidsMap.value[songId] = { loading: true, list: [], count: 0 }
+  } else {
+    songBidsMap.value[songId].loading = true
+  }
+  
+  try {
+    // 1. 准备参数
+    const params = { song_id: songId }
+
+    // 🌟🌟🌟【关键修复】🌟🌟🌟
+    // 如果“我的竞标”模块已经加载了当前轮次，直接把 ID 传过去！
+    // 这样后端就会直接查这个 ID，不再进行严格的时间校验。
+    if (currentBidRound.value && currentBidRound.value.id) {
+        // 借用 currentBidRound ID:', currentBidRound.value.id
+        params.round_id = currentBidRound.value.id
+    } else {
+        console.warn('urrentBidRound 为空，后端可能找不到轮次')
+    }
+    
+    
+    // 2. 发送请求
+    const res = await getTargetBids(params)
+
+
+    if (res.success) {
+      songBidsMap.value[songId].list = res.results || []
+      songBidsMap.value[songId].count = res.count || 0
+    } else {
+      // 即使 success=false，也可以把空列表赋值进去，防止 loading 一直转
+      songBidsMap.value[songId].list = []
+      songBidsMap.value[songId].count = 0
+    }
+  } catch (error) {
+    songBidsMap.value[songId].list = [] // 出错也重置为空
+  } finally {
+    if (songBidsMap.value[songId]) {
+      songBidsMap.value[songId].loading = false
+    }
   }
 }
 
@@ -1667,5 +1771,80 @@ onMounted(async () => {
     padding: 4px 8px;
     font-size: 12px;
   }
+}
+/* ========== 新增样式 - 适配暗色主题 ========== */
+.bids-section {
+  /* 使用半透明深色背景，而不是白色 */
+  background-color: rgba(0, 0, 0, 0.2); 
+  border-radius: 8px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  border: 1px solid var(--border-color); /* 使用全局边框色 */
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--text-primary); /* 强制使用主文字颜色 */
+}
+
+.no-bids {
+  padding: 15px 0;
+  text-align: center;
+}
+
+/* 💀 核心修复：强制覆盖 Element Plus 表格的白色背景 */
+:deep(.el-table) {
+  background-color: transparent !important;
+  color: var(--text-primary);
+  /* 重写表格 CSS 变量 */
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.05);
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.1);
+  --el-table-border-color: var(--border-color);
+  --el-table-text-color: var(--text-primary);
+  --el-table-header-text-color: var(--text-primary);
+}
+
+/* 确保单元格背景透明 */
+:deep(.el-table th),
+:deep(.el-table tr),
+:deep(.el-table td) {
+  background-color: transparent !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+/* 高亮我的出价行 - 使用你的主色调 --primary-color 的半透明版本 */
+:deep(.el-table .my-bid-row) {
+  background-color: rgba(122, 200, 255, 0.15) !important; /* 淡淡的蓝色背景 */
+}
+
+:deep(.el-table .my-bid-row:hover > td.el-table__cell) {
+  background-color: rgba(122, 200, 255, 0.25) !important;
+}
+
+/* 调整表格内文字颜色 */
+:deep(.el-table__cell) {
+  color: var(--text-secondary);
+}
+
+/* 自定义文字高亮类 */
+.highlight-self {
+  font-weight: bold;
+  color: var(--primary-color) !important; /* #7ac8ff */
+}
+
+.highlight-price {
+  font-weight: bold;
+  color: var(--warning-color) !important; /* #f0b762 */
+}
+
+.time-text {
+  font-size: 12px;
+  color: var(--text-secondary) !important; /* #9aa4b5 */
 }
 </style>

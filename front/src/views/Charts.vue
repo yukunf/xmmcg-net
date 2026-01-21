@@ -174,7 +174,7 @@
             </el-form-item>
           </el-form>
         </el-card>
-
+        <!-- TODO 校验只有完成了前半的谱师才能竞标，还是放开？现在是放开的没有校验，还是加上吧之后。-->
         <!-- 2. 我的谱面竞标组件 -->
         <el-card class="my-bids-card" shadow="hover">
           <template #header>
@@ -316,8 +316,7 @@
               class="chart-card"
               shadow="hover"
             >
-              <!-- 封面 -->
-              <div class="chart-cover" @click="viewCover(chart)">
+              <div class="chart-cover" @click="toggleExpand(chart.id)" title="点击展开/收起详情">
                 <img 
                   v-if="chart.cover_url" 
                   :src="chart.cover_url" 
@@ -326,11 +325,15 @@
                 <div v-else class="cover-placeholder">
                   <el-icon :size="60"><Document /></el-icon>
                 </div>
+                <div class="cover-overlay" v-if="!expandedCharts.includes(chart.id)">
+                    <el-icon><CaretBottom /></el-icon>
+                </div>
               </div>
 
-              <!-- 信息 -->
               <div class="chart-info">
-                <h3 class="chart-title">{{ getChartDisplayTitle(chart) }}</h3>
+                <h3 class="chart-title" @click="toggleExpand(chart.id)" style="cursor: pointer;">
+                    {{ getChartDisplayTitle(chart) }}
+                </h3>
                 
                 <div class="chart-meta">
                   <el-tag :type="getStatusType(chart.status)" size="small">
@@ -345,7 +348,66 @@
                 </div>
               </div>
 
-              <!-- 操作按钮 -->
+              <el-collapse-transition>
+                <div v-show="expandedCharts.includes(chart.id)" class="chart-details-expand">
+                  <div class="bids-section">
+                    <div class="section-title">
+                      <span>当前竞标行情</span>
+                      <el-tag v-if="chartBidsMap[chart.id]?.count" size="small" type="info" round>
+                        {{ chartBidsMap[chart.id]?.count }} 人出价
+                      </el-tag>
+                      <el-button 
+                        link 
+                        type="primary" 
+                        size="small" 
+                        :icon="Refresh"
+                        :loading="chartBidsMap[chart.id]?.loading"
+                        @click="fetchChartBids(chart.id)"
+                        style="margin-left: auto;"
+                      >
+                        刷新
+                      </el-button>
+                    </div>
+
+                    <el-skeleton v-if="chartBidsMap[chart.id]?.loading && !chartBidsMap[chart.id]?.list.length" :rows="2" animated />
+
+                    <div v-else-if="!chartBidsMap[chart.id]?.list || chartBidsMap[chart.id]?.list.length === 0" class="no-bids">
+                      <el-text type="info" size="small">暂无竞标记录</el-text>
+                    </div>
+
+                    <el-table 
+                      v-else 
+                      :data="chartBidsMap[chart.id]?.list" 
+                      size="small" 
+                      style="width: 100%;"
+                      max-height="200"
+                      :row-class-name="({ row }) => row.is_self ? 'my-bid-row' : ''"
+                    >
+                      <el-table-column prop="username" label="用户">
+                        <template #default="{ row }">
+                          <span v-if="row.is_self" class="highlight-self">(我) #{{ row.username }}</span>
+                          <span v-else style="font-weight: regular;">#{{ row.username }}</span>
+                        </template>
+                      </el-table-column>
+                      <el-table-column prop="amount" label="出价" width="80">
+                        <template #default="{ row }">
+                          <span class="highlight-price">{{ row.amount }}</span>
+                        </template>
+                      </el-table-column>
+                      <el-table-column prop="created_at" label="时间" width="110">
+                        <template #default="{ row }">
+                          <span class="time-text">{{ formatDate(row.created_at).split(' ')[0] }}</span>
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                  </div>
+                  
+                  <div style="text-align: center; margin-bottom: 10px;">
+                    <el-button link type="info" size="small" @click="viewCover(chart)">查看封面大图</el-button>
+                  </div>
+                </div>
+              </el-collapse-transition>
+
               <div class="chart-actions">
                 <el-button
                   type="primary"
@@ -353,7 +415,7 @@
                   :icon="Download"
                   @click="downloadZip(chart)"
                 >
-                  下载谱面
+                  下载
                 </el-button>
                 <el-button
                   v-if="chart.is_part_one && chart.status === 'part_submitted'"
@@ -470,10 +532,11 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, Picture, VideoCamera, Document, List, Refresh, Download, Clock, TrophyBase } from '@element-plus/icons-vue'
+import { Upload, Picture, VideoCamera, Document, List, Refresh, Download, Clock, TrophyBase, CaretBottom } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
-import { getBidResults, getCharts, getMyCharts, submitChart, getCurrentPhase, getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, getUserPublicInfo, downloadChartBundle } from '../api'
+import { getBidResults, getCharts, getMyCharts, submitChart, getCurrentPhase, getMyBids, getBiddingRounds, submitBid, 
+  getUserProfile, deleteBid, getUserPublicInfo, getTargetBids, downloadChartBundle } from '../api'
 
 // ==================== 数据 ====================
 const uploading = ref(false)
@@ -513,6 +576,9 @@ const coverDialogVisible = ref(false)
 const currentCover = ref('')
 
 // 谱面竞标相关
+const expandedCharts = ref([]) // 存储已展开的 chartId
+const chartBidsMap = ref({})   // 存储每个 chartId 对应的竞标数据 { loading, list, count }
+
 const currentChartBidRound = ref(null)
 const myChartBids = ref([])
 const maxChartBids = ref(5)
@@ -646,6 +712,59 @@ watch(
   },
   { immediate: true }
 )
+
+
+
+// 切换卡片展开状态
+const toggleExpand = async (chartId) => {
+  const index = expandedCharts.value.indexOf(chartId)
+  
+  if (index > -1) {
+    // 收起
+    expandedCharts.value.splice(index, 1)
+  } else {
+    // 展开
+    expandedCharts.value.push(chartId)
+    // 获取数据
+    await fetchChartBids(chartId)
+  }
+}
+
+// 获取单张谱面的竞标数据
+const fetchChartBids = async (chartId) => {
+  // 初始化数据结构
+  if (!chartBidsMap.value[chartId]) {
+    chartBidsMap.value[chartId] = { loading: true, list: [], count: 0 }
+  } else {
+    chartBidsMap.value[chartId].loading = true
+  }
+  
+  try {
+    const params = { chart_id: chartId }
+
+    // 如果前端已知当前的谱面竞标轮次，带上 round_id
+    if (currentChartBidRound.value && currentChartBidRound.value.id) {
+        params.round_id = currentChartBidRound.value.id
+    }
+    
+    const res = await getTargetBids(params)
+
+    if (res.success) {
+      chartBidsMap.value[chartId].list = res.results || []
+      chartBidsMap.value[chartId].count = res.count || 0
+    } else {
+      chartBidsMap.value[chartId].list = []
+      chartBidsMap.value[chartId].count = 0
+    }
+  } catch (error) {
+    console.error(`获取谱面 ${chartId} 竞标行情失败`, error)
+    chartBidsMap.value[chartId].list = []
+  } finally {
+    if (chartBidsMap.value[chartId]) {
+      chartBidsMap.value[chartId].loading = false
+    }
+  }
+}
 // ==================== 文件上传处理 ====================
 const handleAudioChange = (file) => {
   uploadForm.audioFile = file.raw
@@ -1504,5 +1623,96 @@ onMounted(async () => {
     grid-template-columns: 1fr;
     padding: 10px;
   }
+}
+
+
+/* 新增：展开区域容器 */
+.chart-details-expand {
+  padding: 0 15px 15px;
+}
+
+/* 复用 Songs.vue 的暗色主题适配样式 */
+.bids-section {
+  background-color: rgba(0, 0, 0, 0.2); 
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.no-bids {
+  padding: 15px 0;
+  text-align: center;
+}
+
+/* 封面遮罩层 */
+.cover-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 30px;
+  background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+}
+
+/* 强制覆盖 Element Plus 表格样式 (暗色适配) */
+:deep(.el-table) {
+  background-color: transparent !important;
+  color: var(--text-primary);
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.05);
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.1);
+  --el-table-border-color: var(--border-color);
+  --el-table-text-color: var(--text-primary);
+  --el-table-header-text-color: var(--text-primary);
+}
+
+:deep(.el-table th),
+:deep(.el-table tr),
+:deep(.el-table td) {
+  background-color: transparent !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+/* 高亮我的出价 */
+:deep(.el-table .my-bid-row) {
+  background-color: rgba(122, 200, 255, 0.15) !important;
+}
+
+:deep(.el-table .my-bid-row:hover > td.el-table__cell) {
+  background-color: rgba(122, 200, 255, 0.25) !important;
+}
+
+:deep(.el-table__cell) {
+  color: var(--text-secondary);
+}
+
+.highlight-self {
+  font-weight: bold;
+  color: var(--primary-color) !important;
+}
+
+.highlight-price {
+  font-weight: bold;
+  color: var(--warning-color) !important;
+}
+
+.time-text {
+  font-size: 12px;
+  color: var(--text-secondary) !important;
 }
 </style>
