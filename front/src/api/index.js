@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+
 // 简单获取 cookie 的方法
 const getCookie = (name) => {
   const matches = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)'))
@@ -547,8 +548,9 @@ export const submitExtraReview = async (chartId, score, comments = '') => {
  * 获取其他用户的公开信息
  */
 export const getUserPublicInfo = (userId) => {
-  return request({
-    url: `/users/${userId}/public/`, // 注意这里对应刚才配置的 URL
+  return axios({  
+    url: `/api/users/${userId}/public/`, // ⚠️注意：如果没有全局配置baseURL，这里可能要补全 /api 前缀
     method: 'get'
+    // 如果需要 token，通常 axios 拦截器会处理；如果没有拦截器，可能还需要 headers: { ... }
   })
 }

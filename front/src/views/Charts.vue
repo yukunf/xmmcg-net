@@ -623,38 +623,21 @@ const designerQQ = ref('')
 watch(
   () => myBidResult.value,
   async (newResult) => {
-    designerQQ.value = '' // 先重置
-
+    designerQQ.value = '' // 重置
+    
     if (!newResult) return
 
-    let targetId = null
-
-    // 🕵️‍♂️ 方案 A：如果是“谱面竞标(chart)”，我们要找原谱师（在 chart 对象里）
-    if (newResult.bid_type === 'chart' && newResult.chart) {
-        // 尝试从 chart 里获取 user_id 或 user.id
-        // 请注意：这里假设后端 chart 序列化器里有 user 字段
-        if (newResult.chart.user_id) {
-            targetId = newResult.chart.user_id
-        } else if (newResult.chart.user) {
-             targetId = (typeof newResult.chart.user === 'object') 
-                ? newResult.chart.user.id 
-                : newResult.chart.user
-        }
-    } 
-    // 🕵️‍♂️ 方案 B：如果是“歌曲竞标(song)”，那中标人就是你自己
-    // 这种情况下，其实不需要查别人的 QQ，直接显示你自己的（或者不显示）
-    // 如果你非要显示，可以用你本地存储的 user_id
-    else if (newResult.bid_type === 'song') {
-        // 这里 targetId 可以是你自己的 ID，如果你想显示自己的 QQ
-        // const myProfile = await getUserProfile() ...
-    }
-
-    // 发起查询
-    if (targetId) {
+    // 1. 只有谱面竞标 (Stage 2) 才需要显示原作者 QQ
+    if (newResult.bid_type === 'chart' && newResult.chart?.user_id) {
       try {
-        const res = await getUserPublicInfo(targetId)
-        if (res && res.qqid) {
-            designerQQ.value = res.qqid
+        const res = await getUserPublicInfo(newResult.chart.user_id)
+        
+        // 💡 修正点：你的 axios 返回了完整对象，数据在 res.data 里
+        // 我们兼容两种情况（有data解包和没data解包）
+        const serverData = res.data || res 
+        
+        if (serverData && serverData.qqid) {
+            designerQQ.value = serverData.qqid
         }
       } catch (error) {
         console.error('获取谱师QQ失败', error)
@@ -663,7 +646,6 @@ watch(
   },
   { immediate: true }
 )
-
 // ==================== 文件上传处理 ====================
 const handleAudioChange = (file) => {
   uploadForm.audioFile = file.raw
