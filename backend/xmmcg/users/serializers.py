@@ -6,6 +6,7 @@ from .models import UserProfile
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    qqid = serializers.CharField(required=True, write_only=True)
     """用户注册序列化器"""
     password = serializers.CharField(
         write_only=True,
@@ -21,7 +22,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'password_confirm')
+        fields = ('username', 'qqid', 'email', 'password', 'password_confirm')
         extra_kwargs = {
             'email': {'required': True},
         }
@@ -38,6 +39,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'username': '用户名已存在'
             })
+        #验证QQ号是否已存在
+        if data.get('qqid') and UserProfile.objects.filter(qqid=data['qqid']).exists():
+            raise serializers.ValidationError({
+                'qqid': '该QQ号已被注册'
+            })
         
         # 验证邮箱是否已存在
         if data.get('email') and User.objects.filter(email=data['email']).exists():
@@ -51,11 +57,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         """创建用户和用户资料"""
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
+        qqid = validated_data.pop('qqid', '') # User里没有qq号字段，以免出错
         user = User.objects.create(**validated_data)
         user.set_password(password)
         user.save()
         # 创建用户资料（包含 token）
-        UserProfile.objects.create(user=user, token=0)
+        UserProfile.objects.create(user=user, qqid=qqid, token=0) # 已经获得了QQID。
         return user
 
 
@@ -73,10 +80,10 @@ class UserDetailSerializer(serializers.ModelSerializer):
     token = serializers.SerializerMethodField()
     songsCount = serializers.SerializerMethodField()
     chartsCount = serializers.SerializerMethodField()
-    
+    qqid = serializers.CharField(source='profile.qqid', read_only=True)
     class Meta:
         model = User
-        fields = ('username', 'email', 'is_active', 'date_joined', 'token', 'songsCount', 'chartsCount')
+        fields = ('username', 'qqid', 'email', 'is_active', 'date_joined', 'token', 'songsCount', 'chartsCount')
         read_only_fields = ('username', 'date_joined', 'token', 'songsCount', 'chartsCount')
     
     def get_token(self, obj):
@@ -126,3 +133,25 @@ class UpdateTokenSerializer(serializers.Serializer):
         if value < 0:
             raise serializers.ValidationError("Token 不能为负数")
         return value
+
+
+class UserPublicSerializer(serializers.ModelSerializer):
+    """
+    专门用于公开展示的用户信息
+    只包含：ID、用户名、QQ号、作品统计
+    ❌ 绝对不包含：Token(余额)、Email、密码等
+    """
+    qqid = serializers.CharField(source='profile.qqid', read_only=True)
+    songsCount = serializers.SerializerMethodField()
+    chartsCount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'qqid', 'songsCount', 'chartsCount')
+
+    # 复用你之前的统计逻辑
+    def get_songsCount(self, obj):
+        return obj.songs.count()
+    
+    def get_chartsCount(self, obj):
+        return obj.charts.count() if hasattr(obj, 'charts') else 0

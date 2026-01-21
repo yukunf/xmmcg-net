@@ -23,6 +23,9 @@
             <el-descriptions-item label="剩余代币">
               <el-tag type="warning">{{ userInfo.token || 0 }}</el-tag>
             </el-descriptions-item>
+            <el-descriptions-item label="QQ号">
+              {{ userInfo.qqid || 'N/A' }}
+            </el-descriptions-item>
           </el-descriptions>
 
           <el-divider />
@@ -73,6 +76,7 @@ const router = useRouter()
 
 const userInfo = ref({
   username: localStorage.getItem('username') || '未知用户',
+  qqid: null,
   email: null,
   date_joined: null,
   token: 0,

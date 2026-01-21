@@ -256,11 +256,13 @@ class BidResultSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     allocation_type_display = serializers.CharField(source='get_allocation_type_display', read_only=True)
     bid_type_display = serializers.CharField(source='get_bid_type_display', read_only=True)
+    chart_designer_id = serializers.IntegerField(source='chart.user.id', read_only=True, allow_null=True)
+    
     
     class Meta:
         model = BidResult
         fields = (
-            'id', 'username', 'bid_type', 'bid_type_display', 'song', 'chart',
+            'id', 'username', 'bid_type', 'bid_type_display', 'song', 'chart','chart_designer_id',
             'bid_amount', 'allocation_type', 'allocation_type_display', 'allocated_at'
         )
         read_only_fields = fields
@@ -270,10 +272,13 @@ class BidResultSerializer(serializers.ModelSerializer):
         if obj.chart:
             return {
                 'id': obj.chart.id,
+                # 加上 getattr 或 if 判断是为了防止 obj.chart.user 为 None (如用户已注销)
+                'user_id': obj.chart.user.id if obj.chart.user else None,
                 'song': {
                     'id': obj.chart.song.id,
                     'title': obj.chart.song.title
                 },
+                
                 'creator_username': obj.chart.user.username,
                 'average_score': obj.chart.average_score,
                 'created_at': obj.chart.created_at

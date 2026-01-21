@@ -940,6 +940,7 @@ def bid_results_view(request):
         elif result.bid_type == 'chart' and result.chart:
             item['chart'] = {
                 'id': result.chart.id,
+                "user_id": result.chart.user.id,
                 'song_title': result.chart.song.title,
                 'creator_username': result.chart.user.username,
                 'average_score': result.chart.average_score,

@@ -13,6 +13,7 @@ urlpatterns = [
     # 用户信息相关
     path('me/', views.get_current_user, name='get_current_user'),
     path('profile/', views.update_profile, name='update_profile'),
+    path('<int:pk>/public/', views.get_user_public_info, name='get_user_public_info'),#专用获取其他用户可见信息
     
     # 密码管理
     path('change-password/', views.change_password, name='change_password'),
@@ -26,4 +27,5 @@ urlpatterns = [
     # 验证相关
     path('check-username/', views.check_username_availability, name='check_username_availability'),
     path('check-email/', views.check_email_availability, name='check_email_availability'),
+    path('check-qqid/', views.check_qqid_availability, name='check_qqid_availability'),
 ]

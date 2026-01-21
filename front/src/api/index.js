@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+
 // 简单获取 cookie 的方法
 const getCookie = (name) => {
   const matches = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)'))
@@ -107,11 +108,12 @@ export const login = async (username, password) => {
 /**
  * 用户注册
  */
-export const register = async (username, email, password, passwordConfirm) => {
+export const register = async (username, qqid, email, password, passwordConfirm) => {
   try {
     await ensureCsrfToken()
     const response = await api.post('/users/register/', {
       username,
+      qqid,
       email,
       password,
       password_confirm: passwordConfirm
@@ -146,6 +148,8 @@ export const getUserProfile = async () => {
     throw error
   }
 }
+
+
 
 /**
  * 确保已有 CSRF Token（若无则向后端获取并设置 Cookie）
@@ -539,3 +543,14 @@ export const submitExtraReview = async (chartId, score, comments = '') => {
   }
 }
 
+/**
+ * 
+ * 获取其他用户的公开信息
+ */
+export const getUserPublicInfo = (userId) => {
+  return axios({  
+    url: `/api/users/${userId}/public/`, // ⚠️注意：如果没有全局配置baseURL，这里可能要补全 /api 前缀
+    method: 'get'
+    // 如果需要 token，通常 axios 拦截器会处理；如果没有拦截器，可能还需要 headers: { ... }
+  })
+}
