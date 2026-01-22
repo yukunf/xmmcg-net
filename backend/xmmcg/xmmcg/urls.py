@@ -20,7 +20,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
-from backend.xmmcg.xmmcg.settings import REST_FRAMEWORK
+from settings import REST_FRAMEWORK
 
 urlpatterns = [
     path("admin/", admin.site.urls),
