@@ -418,11 +418,6 @@
       <el-text type="info">上传时间：</el-text>
       <el-text>{{ formatDate(song.created_at) }}</el-text>
     </div>
-                    
-                    <div class="detail-item">
-                      <el-text type="info">上传时间：</el-text>
-                      <el-text>{{ formatDate(song.created_at) }}</el-text>
-                    </div>
 
                     <div class="detail-item" v-if="song.netease_url">
                       <el-button 
