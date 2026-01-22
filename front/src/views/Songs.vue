@@ -62,7 +62,7 @@
             </el-form-item>
 
             <el-form-item label="歌曲链接" prop="neteaseUrl">
-              <el-input v-model="uploadForm.neteaseUrl" placeholder="网易云音乐链接（可选）" type="url" />
+              <el-input v-model="uploadForm.neteaseUrl" placeholder="bilibili/网易云音乐链接（可选）" type="url" />
             </el-form-item>
 
             <el-form-item>
@@ -309,7 +309,7 @@
 
                     <div class="detail-item" v-if="song.netease_url">
                       <el-button type="primary" size="small" :icon="Link" @click="openNeteaseUrl(song.netease_url)">
-                        打开网易云链接
+                        打开歌曲链接
                       </el-button>
                     </div>
 
@@ -826,11 +826,6 @@ const loadSongs = async () => {
     const response = await getSongs({ page: 1, page_size: 1000 })
     if (response.success) {
       allSongs.value = response.results || []
-      console.log('加载的歌曲列表:', allSongs.value)
-      if (allSongs.value.length > 0) {
-        console.log('第一首歌曲:', JSON.stringify(allSongs.value[0], null, 2))
-        console.log('所有歌曲的网易云链接:', allSongs.value.map(s => ({ id: s.id, title: s.title, netease_url: s.netease_url })))
-      }
     }
   } catch (error) {
     console.error('加载歌曲列表失败:', error)
