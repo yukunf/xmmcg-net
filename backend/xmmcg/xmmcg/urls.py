@@ -20,8 +20,6 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
-from settings import REST_FRAMEWORK
-
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/users/", include("users.urls")),
@@ -31,6 +29,6 @@ urlpatterns = [
 # 在开发环境中提供媒体文件
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'].append(
+    settings.REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'].append(
         'rest_framework.renderers.BrowsableAPIRenderer'
     )
