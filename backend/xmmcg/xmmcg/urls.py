@@ -29,6 +29,4 @@ urlpatterns = [
 # 在开发环境中提供媒体文件
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    settings.REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'].append(
-        'rest_framework.renderers.BrowsableAPIRenderer'
-    )
+    
