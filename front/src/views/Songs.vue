@@ -93,8 +93,19 @@
             <el-skeleton :rows="3" animated />
           </div>
 
-          <el-empty v-else-if="!currentBidRound" description="当前没有活跃的竞标轮次" :image-size="120" />
-
+          <div v-else-if="!currentBidRound">
+  <el-image 
+    src="/res/supi.gif" 
+    style="width: 100px; display: block; margin: 20px auto;"
+  >
+    <template #error>
+      <div class="image-slot"></div>
+    </template>
+  </el-image>
+  <el-text type="info" size="small" style="display: block; text-align: center;">
+    当前没有活跃的竞标轮次，请等待管理员开启新的竞标活动。
+  </el-text>
+</div>
           <div v-else>
             <el-alert :title="`当前轮次：${currentBidRound.name}`" type="info" :closable="false" class="round-info">
               <template #default>
