@@ -403,6 +403,13 @@ class BiddingRound(models.Model):
         help_text='完成时间'
     )
     
+    
+    # 新增加的控制访问字段
+    allow_public_view = models.BooleanField(
+        default=True, 
+        verbose_name="允许公开查看竞标",
+        help_text="如果关闭，只有管理员能看到竞标列表，普通用户（包括竞标者）无法查看。"
+    )
     class Meta:
         verbose_name = '竞标轮次'
         verbose_name_plural = '竞标轮次'

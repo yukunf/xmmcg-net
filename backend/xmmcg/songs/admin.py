@@ -118,8 +118,10 @@ class CompetitionPhaseAdmin(admin.ModelAdmin):
 
 @admin.register(BiddingRound)
 class BiddingRoundAdmin(admin.ModelAdmin):
-    list_display = ('name', 'bidding_type', 'competition_phase', 'status', 'available_targets_count', 'created_at', 'started_at', 'completed_at')
-    list_filter = ('bidding_type', 'status', 'created_at', 'competition_phase')
+    list_display = ('name', 'bidding_type', 'competition_phase', 'status', 'available_targets_count', 'allow_public_view', 
+                    'created_at', 'started_at', 'completed_at')
+    list_editable = ('status', 'allow_public_view')
+    list_filter = ('bidding_type', 'status', 'created_at', 'competition_phase', 'bidding_type')
     ordering = ('-created_at',)
     search_fields = ('name',)
     actions = ['allocate_bids_action', 'auto_create_chart_round_action']
@@ -392,4 +394,4 @@ class PeerReviewAdmin(admin.ModelAdmin):
 
 # @admin.register(SecondBidResult)
 # class SecondBidResultAdmin(admin.ModelAdmin):
-#     ...
+#     ...%
