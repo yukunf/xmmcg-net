@@ -4,18 +4,21 @@
       <el-main>
         <!-- 轮换Banner -->
         <Banner />
-        
+
         <!-- 比赛状态 -->
         <el-card class="status-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <el-icon><TrophyBase /></el-icon>
+              <el-icon>
+                <TrophyBase />
+              </el-icon>
               <span>当前比赛状态</span>
             </div>
           </template>
           <el-row :gutter="20">
             <el-col :xs="24" :sm="12" :md="6">
               <div class="status-item">
+                <div class="status-label">比赛状态</div>
                 <div class="status-value">{{ competitionStatus.currentRound || '未开始' }}</div>
               </div>
             </el-col>
@@ -53,7 +56,9 @@
           <el-col :xs="24" :sm="12" :md="8">
             <el-card shadow="hover" class="action-card">
               <div class="action-content">
-                <el-icon size="48" color="#409EFF"><Headset /></el-icon>
+                <el-icon size="48" color="#409EFF">
+                  <Headset />
+                </el-icon>
                 <h3>浏览歌曲</h3>
                 <p>查看所有可竞标的歌曲</p>
                 <el-button type="primary" @click="$router.push('/songs')">
@@ -65,7 +70,9 @@
           <el-col :xs="24" :sm="12" :md="8">
             <el-card shadow="hover" class="action-card">
               <div class="action-content">
-                <el-icon size="48" color="#67C23A"><Document /></el-icon>
+                <el-icon size="48" color="#67C23A">
+                  <Document />
+                </el-icon>
                 <h3>查看谱面</h3>
                 <p>浏览所有提交的谱面作品</p>
                 <el-button type="success" @click="$router.push('/charts')">
@@ -77,7 +84,9 @@
           <el-col :xs="24" :sm="12" :md="8">
             <el-card shadow="hover" class="action-card">
               <div class="action-content">
-                <el-icon size="48" color="#E6A23C"><User /></el-icon>
+                <el-icon size="48" color="#E6A23C">
+                  <User />
+                </el-icon>
                 <h3>个人中心</h3>
                 <p>管理您的作品和竞标</p>
                 <el-button type="warning" @click="goToProfile">
