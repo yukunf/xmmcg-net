@@ -120,6 +120,46 @@ class SongDetailSerializer(serializers.ModelSerializer):
             return obj.background_video.url
         return None
 
+#匿名化，如果获取数据直接向前端暴露则需要这个
+class SongAnonymousSerializer(serializers.ModelSerializer):
+    """歌曲列表序列化器（返回匿名信息）"""
+    #user = SongUserSerializer(read_only=True)
+    audio_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
+    video_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Song
+        fields = (
+            'id',
+            'title',
+            #'user',
+            'audio_url',
+            'cover_url',
+            'video_url',
+            'netease_url',
+            'file_size',
+            'created_at'
+        )
+        read_only_fields = fields
+    
+    def get_audio_url(self, obj):
+        """获取音频文件 URL"""
+        if obj.audio_file:
+            return obj.audio_file.url
+        return None
+    
+    def get_cover_url(self, obj):
+        """获取封面文件 URL"""
+        if obj.cover_image:
+            return obj.cover_image.url
+        return None
+    
+    def get_video_url(self, obj):
+        """获取背景视频文件 URL"""
+        if obj.background_video:
+            return obj.background_video.url
+        return None
 
 class SongListSerializer(serializers.ModelSerializer):
     """歌曲列表序列化器（返回精简信息）"""

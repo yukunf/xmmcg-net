@@ -10,7 +10,7 @@ urlpatterns = [
     path('phase/current/', views.get_current_phase, name='current-phase'),
     
     # 根路径：GET 列表，POST 上传
-    path('', views.songs_root, name='songs-root'),
+    path('', views.songs_root, name='songs-root'), # TODO这里破坏了匿名性，待修复
     
     # 用户自己的歌曲操作
     path('me/', views.get_my_songs, name='get-my-songs'),
@@ -27,16 +27,16 @@ urlpatterns = [
     path('bidding-rounds/auto-create-chart-round/', views.auto_create_chart_bidding_round, name='auto-create-chart-round'),
     
     # 用户竞标管理
-    path('bids/', views.user_bids_root, name='user-bids-root'),
+    path('bids/', views.user_bids_root, name='user-bids-root'),# 用户提交竞标，查看自己的竞标，也有匿名性。
     path('bids/<int:bid_id>/', views.delete_bid_view, name='delete-bid'),
-    path('bids/target/', views.target_bids_list, name='target_bids_list'),
+    path('bids/target/', views.target_bids_list, name='target_bids_list'), #查看行情，返回的是哈希用户名。
     path('bids/allocate/', views.allocate_bids_view, name='allocate-bids'),
     
     # 竞标结果
-    path('bid-results/', views.bid_results_view, name='bid-results'),
+    path('bid-results/', views.bid_results_view, name='bid-results'), # 该API为认证用户提供自己的竞标结果，匿名性已测试。
     
     # ==================== 谱面相关路由 ====================
-    path('charts/', views.charts_root, name='charts-root'),
+    path('charts/', views.charts_root, name='charts-root'), # TODO 这里破坏了匿名性，待修复
     path('charts/me/', views.get_user_charts, name='get-user-charts'),
     path('charts/<int:result_id>/submit/', views.submit_chart, name='submit-chart'),
     path('charts/<int:chart_id>/bundle/', views.download_chart_bundle, name='download-chart-bundle'),
