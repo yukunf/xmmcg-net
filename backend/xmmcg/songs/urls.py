@@ -10,7 +10,7 @@ urlpatterns = [
     path('phase/current/', views.get_current_phase, name='current-phase'),
     
     # 根路径：GET 列表，POST 上传
-    path('', views.songs_root, name='songs-root'), # TODO这里破坏了匿名性，待修复
+    path('', views.songs_root, name='songs-root'), # 匿名性已patch测试
     
     # 用户自己的歌曲操作
     path('me/', views.get_my_songs, name='get-my-songs'),
@@ -36,7 +36,7 @@ urlpatterns = [
     path('bid-results/', views.bid_results_view, name='bid-results'), # 该API为认证用户提供自己的竞标结果，匿名性已测试。
     
     # ==================== 谱面相关路由 ====================
-    path('charts/', views.charts_root, name='charts-root'), # TODO 这里破坏了匿名性，待修复
+    path('charts/', views.charts_root, name='charts-root'), # 匿名性已修复
     path('charts/me/', views.get_user_charts, name='get-user-charts'),
     path('charts/<int:result_id>/submit/', views.submit_chart, name='submit-chart'),
     path('charts/<int:chart_id>/bundle/', views.download_chart_bundle, name='download-chart-bundle'),

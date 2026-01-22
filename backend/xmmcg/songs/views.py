@@ -1107,7 +1107,7 @@ def charts_root(request):
     GET /api/charts/
     """
     from .models import Chart
-    from .serializers import ChartSerializer
+    from .serializers import ChartSerializer,ChartAnonymousSerializer
 
     charts = Chart.objects.select_related('song', 'user').order_by('-created_at')
 
@@ -1119,7 +1119,7 @@ def charts_root(request):
     total_count = charts.count()
     charts_page = charts[start:end]
 
-    serializer = ChartSerializer(charts_page, many=True, context={'request': request})
+    serializer = ChartAnonymousSerializer(charts_page, many=True, context={'request': request})
 
     return Response({
         'success': True,
