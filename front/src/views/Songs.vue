@@ -6,7 +6,9 @@
         <el-card class="upload-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <el-icon><Upload /></el-icon>
+              <el-icon>
+                <Upload />
+              </el-icon>
               <span>上传歌曲</span>
               <el-tag v-if="mySongs.length > 0" type="info" size="small">
                 已上传 {{ mySongs.length }}/2 首
@@ -14,23 +16,11 @@
             </div>
           </template>
 
-          <el-form 
-            ref="uploadFormRef" 
-            :model="uploadForm" 
-            :rules="uploadRules" 
-            label-width="100px"
-            :disabled="uploading || mySongs.length >= 2"
-          >
+          <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadRules" label-width="100px"
+            :disabled="uploading || mySongs.length >= 2">
             <el-form-item label="音频文件" prop="audioFile">
-              <el-upload
-                ref="audioUploadRef"
-                :auto-upload="false"
-                :limit="1"
-                :on-change="handleAudioChange"
-                :on-remove="handleAudioRemove"
-                accept=".mp3"
-                :file-list="audioFileList"
-              >
+              <el-upload ref="audioUploadRef" :auto-upload="false" :limit="1" :on-change="handleAudioChange"
+                :on-remove="handleAudioRemove" accept=".mp3" :file-list="audioFileList">
                 <el-button type="primary" :icon="Upload">选择MP3文件</el-button>
                 <template #tip>
                   <div class="el-upload__tip">
@@ -41,28 +31,15 @@
             </el-form-item>
 
             <el-form-item v-if="showTitleField" label="歌曲标题" prop="title">
-              <el-input 
-                v-model="uploadForm.title" 
-                placeholder="请输入或编辑歌曲标题（最多100字符）"
-                maxlength="100"
-                show-word-limit
-              />
+              <el-input v-model="uploadForm.title" placeholder="请输入或编辑歌曲标题（最多100字符）" maxlength="100" show-word-limit />
               <div class="title-hint" v-if="uploadForm.title">
                 <el-text type="success" size="small">✓ 已从MP3文件读取标题</el-text>
               </div>
             </el-form-item>
 
             <el-form-item label="封面图片" prop="coverImage">
-              <el-upload
-                ref="coverUploadRef"
-                :auto-upload="false"
-                :limit="1"
-                :on-change="handleCoverChange"
-                :on-remove="handleCoverRemove"
-                accept=".jpg,.jpeg,.png"
-                :file-list="coverFileList"
-                list-type="picture"
-              >
+              <el-upload ref="coverUploadRef" :auto-upload="false" :limit="1" :on-change="handleCoverChange"
+                :on-remove="handleCoverRemove" accept=".jpg,.jpeg,.png" :file-list="coverFileList" list-type="picture">
                 <el-button :icon="Picture">选择封面</el-button>
                 <template #tip>
                   <div class="el-upload__tip">
@@ -73,16 +50,8 @@
             </el-form-item>
 
             <el-form-item label="背景视频" prop="backgroundVideo">
-              <el-upload
-                ref="videoUploadRef"
-                :auto-upload="false"
-                :limit="1"
-                :on-change="handleVideoChange"
-                :on-remove="handleVideoRemove"
-                accept=".mp4"
-                :file-list="videoFileList"
-                list-type="text"
-              >
+              <el-upload ref="videoUploadRef" :auto-upload="false" :limit="1" :on-change="handleVideoChange"
+                :on-remove="handleVideoRemove" accept=".mp4" :file-list="videoFileList" list-type="text">
                 <el-button :icon="VideoCamera">选择视频</el-button>
                 <template #tip>
                   <div class="el-upload__tip">
@@ -93,20 +62,11 @@
             </el-form-item>
 
             <el-form-item label="歌曲链接" prop="neteaseUrl">
-              <el-input 
-                v-model="uploadForm.neteaseUrl" 
-                placeholder="网易云音乐链接（可选）"
-                type="url"
-              />
+              <el-input v-model="uploadForm.neteaseUrl" placeholder="网易云音乐链接（可选）" type="url" />
             </el-form-item>
 
             <el-form-item>
-              <el-button 
-                type="primary" 
-                @click="handleUpload"
-                :loading="uploading"
-                :disabled="mySongs.length >= 2"
-              >
+              <el-button type="primary" @click="handleUpload" :loading="uploading" :disabled="mySongs.length >= 2">
                 {{ uploading ? '上传中...' : '上传歌曲' }}
               </el-button>
               <el-button @click="resetUploadForm">重置</el-button>
@@ -121,15 +81,11 @@
         <el-card class="bids-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <el-icon><TrophyBase /></el-icon>
+              <el-icon>
+                <TrophyBase />
+              </el-icon>
               <span>我的竞标</span>
-              <el-button 
-                size="small" 
-                type="primary" 
-                :icon="Refresh" 
-                @click="loadMyBids"
-                circle
-              />
+              <el-button size="small" type="primary" :icon="Refresh" @click="loadMyBids" circle />
             </div>
           </template>
 
@@ -137,29 +93,16 @@
             <el-skeleton :rows="3" animated />
           </div>
 
-          <el-empty 
-            v-else-if="!currentBidRound" 
-            description="当前没有活跃的竞标轮次"
-            :image-size="120"
-          />
+          <el-empty v-else-if="!currentBidRound" description="当前没有活跃的竞标轮次" :image-size="120" />
 
           <div v-else>
-            <el-alert 
-              :title="`当前轮次：${currentBidRound.name}`" 
-              type="info" 
-              :closable="false"
-              class="round-info"
-            >
+            <el-alert :title="`当前轮次：${currentBidRound.name}`" type="info" :closable="false" class="round-info">
               <template #default>
                 已竞标 {{ myBids.length }}/{{ maxBids }} 首
               </template>
             </el-alert>
 
-            <el-empty 
-              v-if="myBids.length === 0" 
-              description="您还没有竞标任何歌曲"
-              :image-size="120"
-            >
+            <el-empty v-if="myBids.length === 0" description="您还没有竞标任何歌曲" :image-size="120">
               <el-button type="primary" @click="scrollToSongs">去浏览歌曲</el-button>
             </el-empty>
 
@@ -172,10 +115,7 @@
               </el-table-column>
               <el-table-column prop="status" label="状态" width="120">
                 <template #default="{ row }">
-                  <el-tag 
-                    :type="getBidStatusType(row.status)"
-                    :effect="row.status === 'won' ? 'dark' : 'plain'"
-                  >
+                  <el-tag :type="getBidStatusType(row.status)" :effect="row.status === 'won' ? 'dark' : 'plain'">
                     {{ getBidStatusText(row.status) }}
                   </el-tag>
                 </template>
@@ -187,21 +127,11 @@
               </el-table-column>
               <el-table-column label="操作" width="150" align="center">
                 <template #default="{ row }">
-                  <el-button
-                    v-if="row.status === 'won'"
-                    type="success"
-                    size="small"
-                    :icon="Download"
-                    @click="downloadSong(row.song)"
-                  >
+                  <el-button v-if="row.status === 'won'" type="success" size="small" :icon="Download"
+                    @click="downloadSong(row.song)">
                     下载
                   </el-button>
-                  <el-button
-                    v-if="row.status === 'bidding'"
-                    type="danger"
-                    size="small"
-                    @click="handleWithdrawBid(row)"
-                  >
+                  <el-button v-if="row.status === 'bidding'" type="danger" size="small" @click="handleWithdrawBid(row)">
                     撤回
                   </el-button>
                   <span v-else-if="row.status !== 'won'" style="color: #ccc; font-size: 12px;">-</span>
@@ -215,39 +145,23 @@
         <el-card class="songs-list-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <el-icon><Headset /></el-icon>
+              <el-icon>
+                <Headset />
+              </el-icon>
               <span>所有歌曲</span>
               <div class="header-actions">
-                <el-select 
-                  v-model="cardSize" 
-                  placeholder="显示模式" 
-                  style="width: 120px; margin-right: 10px;"
-                >
+                <el-select v-model="cardSize" placeholder="显示模式" style="width: 120px; margin-right: 10px;">
                   <el-option label="小卡片" value="small" />
                   <el-option label="中卡片" value="medium" />
                   <el-option label="列表" value="list" />
                 </el-select>
-                <el-select 
-                  v-model="sortBy" 
-                  placeholder="排序方式" 
-                  style="width: 120px; margin-right: 10px;"
-                >
+                <el-select v-model="sortBy" placeholder="排序方式" style="width: 120px; margin-right: 10px;">
                   <el-option label="标题排序" value="title" />
                   <el-option label="时间排序" value="date" />
                 </el-select>
-                <el-input
-                  v-model="searchKeyword"
-                  placeholder="搜索歌曲标题"
-                  :prefix-icon="Search"
-                  clearable
-                  style="width: 200px; margin-right: 10px;"
-                />
-                <el-button 
-                  type="primary" 
-                  :icon="Refresh" 
-                  @click="loadSongs"
-                  circle
-                />
+                <el-input v-model="searchKeyword" placeholder="搜索歌曲标题" :prefix-icon="Search" clearable
+                  style="width: 200px; margin-right: 10px;" />
+                <el-button type="primary" :icon="Refresh" @click="loadSongs" circle />
               </div>
             </div>
           </template>
@@ -256,66 +170,48 @@
             <el-skeleton :rows="5" animated />
           </div>
 
-          <el-empty 
-            v-else-if="filteredSongs.length === 0" 
-            description="暂无歌曲"
-            :image-size="200"
-          />
+          <el-empty v-else-if="filteredSongs.length === 0" description="暂无歌曲" :image-size="200" />
 
           <div v-else class="songs-grid" :class="`grid-${cardSize}`">
-            <el-card
-              v-for="song in paginatedSongs"
-              :key="song.id"
-              class="song-card"
-              :class="`card-${cardSize}`"
-              :body-style="{ padding: '0' }"
-              shadow="hover"
-            >
+            <el-card v-for="song in paginatedSongs" :key="song.id" class="song-card" :class="`card-${cardSize}`"
+              :body-style="{ padding: '0' }" shadow="hover">
               <!-- 列表模式 -->
               <div v-if="cardSize === 'list'" class="list-item">
                 <div class="list-cover" @click="toggleExpand(song.id)">
-                  <img 
-                    v-if="song.cover_url" 
-                    :src="getFullImageUrl(song.cover_url)" 
-                    :alt="song.title"
-                    @error="handleImageError"
-                  />
+                  <img v-if="song.cover_url" :src="getFullImageUrl(song.cover_url)" :alt="song.title"
+                    @error="handleImageError" />
                   <div v-else class="cover-placeholder-small">
-                    <el-icon :size="24"><Headset /></el-icon>
+                    <el-icon :size="24">
+                      <Headset />
+                    </el-icon>
                   </div>
                 </div>
 
-                <div class="list-info" @click="toggleExpand(song.id)" :title="expandedSongs.includes(song.id) ? '点击收起详情' : '点击展开详情和操作'">
+                <div class="list-info" @click="toggleExpand(song.id)"
+                  :title="expandedSongs.includes(song.id) ? '点击收起详情' : '点击展开详情和操作'">
                   <div class="list-title">{{ song.title }}</div>
                   <div class="list-date">
-                    <el-icon :size="12"><Clock /></el-icon>
+                    <el-icon :size="12">
+                      <Clock />
+                    </el-icon>
                     {{ formatDate(song.created_at).split(' ')[0] }}
                   </div>
                 </div>
 
                 <div v-show="expandedSongs.includes(song.id)" class="list-actions">
                   <el-dropdown @command="(command) => handleDownloadCommand(command, song)">
-                    <el-button 
-                      type="primary" 
-                      size="small"
-                      :icon="Download"
-                    >
+                    <el-button type="primary" size="small" :icon="Download">
                       下载 <el-icon class="el-icon--right"><arrow-down /></el-icon>
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
                         <el-dropdown-item command="audio">仅下载音频</el-dropdown-item>
-                            <el-dropdown-item command="package">下载歌曲包（音频+封面+视频）</el-dropdown-item>
+                        <el-dropdown-item command="package">下载歌曲包（音频+封面+视频）</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
                   <template v-if="isMyOwnSong(song)">
-                    <el-button 
-                      type="warning" 
-                      size="small"
-                      :icon="Edit"
-                      @click="editSong(song)"
-                    >
+                    <el-button type="warning" size="small" :icon="Edit" @click="editSong(song)">
                       编辑
                     </el-button>
                   </template>
@@ -325,15 +221,14 @@
               <!-- 卡片模式 -->
               <div v-else class="card-item">
                 <!-- 卡片封面 -->
-                <div class="song-cover" @click="toggleExpand(song.id)" :title="expandedSongs.includes(song.id) ? '点击收起详情' : '点击展开详情和操作'">
-                  <img 
-                    v-if="song.cover_url" 
-                    :src="getFullImageUrl(song.cover_url)" 
-                    :alt="song.title"
-                    @error="handleImageError"
-                  />
+                <div class="song-cover" @click="toggleExpand(song.id)"
+                  :title="expandedSongs.includes(song.id) ? '点击收起详情' : '点击展开详情和操作'">
+                  <img v-if="song.cover_url" :src="getFullImageUrl(song.cover_url)" :alt="song.title"
+                    @error="handleImageError" />
                   <div v-else class="cover-placeholder">
-                    <el-icon :size="60"><Headset /></el-icon>
+                    <el-icon :size="60">
+                      <Headset />
+                    </el-icon>
                   </div>
                   <div class="cover-overlay">
                     <el-icon :size="30">
@@ -347,10 +242,13 @@
                 </div>
 
                 <!-- 卡片标题 -->
-                <div class="song-title" @click="toggleExpand(song.id)" :title="expandedSongs.includes(song.id) ? '点击收起详情' : '点击展开详情和操作'">
+                <div class="song-title" @click="toggleExpand(song.id)"
+                  :title="expandedSongs.includes(song.id) ? '点击收起详情' : '点击展开详情和操作'">
                   <h3>{{ song.title }}</h3>
                   <p class="song-meta">
-                    <el-icon><Clock /></el-icon>
+                    <el-icon>
+                      <Clock />
+                    </el-icon>
                     <span class="meta-text">{{ formatDate(song.created_at).split(' ')[0] }}</span>
                   </p>
                 </div>
@@ -360,87 +258,64 @@
                   <div v-show="expandedSongs.includes(song.id)" class="song-details">
                     <el-divider />
                     <div class="bids-section">
-      <div class="section-title">
-        <span>当前竞标行情</span>
-        <el-tag v-if="songBidsMap[song.id]?.count" size="small" type="info" round>
-          {{ songBidsMap[song.id]?.count }} 人出价
-        </el-tag>
-        <el-button 
-          v-if="expandedSongs.includes(song.id)"
-          link 
-          type="primary" 
-          size="small" 
-          :icon="Refresh"
-          :loading="songBidsMap[song.id]?.loading"
-          @click="fetchSongBids(song.id)"
-          style="margin-left: auto;"
-        >
-          刷新
-        </el-button>
-      </div>
+                      <div class="section-title">
+                        <span>当前竞标行情</span>
+                        <el-tag v-if="songBidsMap[song.id]?.count" size="small" type="info" round>
+                          {{ songBidsMap[song.id]?.count }} 人出价
+                        </el-tag>
+                        <el-button v-if="expandedSongs.includes(song.id)" link type="primary" size="small"
+                          :icon="Refresh" :loading="songBidsMap[song.id]?.loading" @click="fetchSongBids(song.id)"
+                          style="margin-left: auto;">
+                          刷新
+                        </el-button>
+                      </div>
 
-      <el-skeleton v-if="songBidsMap[song.id]?.loading && !songBidsMap[song.id]?.list.length" :rows="2" animated />
+                      <el-skeleton v-if="songBidsMap[song.id]?.loading && !songBidsMap[song.id]?.list.length" :rows="2"
+                        animated />
 
-      <div v-else-if="!songBidsMap[song.id]?.list || songBidsMap[song.id]?.list.length === 0" class="no-bids">
-        <el-text type="info" size="small">暂无竞标记录，快来抢占第一吧！</el-text>
-      </div>
+                      <div v-else-if="!songBidsMap[song.id]?.list || songBidsMap[song.id]?.list.length === 0"
+                        class="no-bids">
+                        <el-text type="info" size="small">暂无竞标记录，快来抢占第一吧！</el-text>
+                      </div>
 
-      <el-table 
-        v-else 
-        :data="songBidsMap[song.id]?.list" 
-        size="small" 
-        style="width: 100%; margin-bottom: 15px;"
-        max-height="200"
-        :row-class-name="({ row }) => row.is_self ? 'my-bid-row' : ''"
-      >
-        <el-table-column prop="username" label="用户" width="120">
-          <template #default="{ row }">
-            <span v-if="row.is_self" class="highlight-self">(我) #{{ row.username }}</span>
-            <span v-else>#{{ row.username }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column prop="amount" label="出价" width="100">
-          <template #default="{ row }">
-            <span class="highlight-price">{{ row.amount }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column prop="created_at" label="时间" min-width="140">
-          <template #default="{ row }">
-            <span class="time-text">{{ formatDate(row.created_at) }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-    <el-divider style="margin: 10px 0;" />
-    <div class="detail-item">
-      <el-text type="info">上传时间：</el-text>
-      <el-text>{{ formatDate(song.created_at) }}</el-text>
-    </div>
-                    
+                      <el-table v-else :data="songBidsMap[song.id]?.list" size="small"
+                        style="width: 100%; margin-bottom: 15px;" max-height="200"
+                        :row-class-name="({ row }) => row.is_self ? 'my-bid-row' : ''">
+                        <el-table-column prop="username" label="用户" width="120">
+                          <template #default="{ row }">
+                            <span v-if="row.is_self" class="highlight-self">(我) #{{ row.username }}</span>
+                            <span v-else>#{{ row.username }}</span>
+                          </template>
+                        </el-table-column>
+
+                        <el-table-column prop="amount" label="出价" width="100">
+                          <template #default="{ row }">
+                            <span class="highlight-price">{{ row.amount }}</span>
+                          </template>
+                        </el-table-column>
+
+                        <el-table-column prop="created_at" label="时间" min-width="140">
+                          <template #default="{ row }">
+                            <span class="time-text">{{ formatDate(row.created_at) }}</span>
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                    </div>
+                    <el-divider style="margin: 10px 0;" />
                     <div class="detail-item">
                       <el-text type="info">上传时间：</el-text>
                       <el-text>{{ formatDate(song.created_at) }}</el-text>
                     </div>
 
                     <div class="detail-item" v-if="song.netease_url">
-                      <el-button 
-                        type="primary" 
-                        size="small"
-                        :icon="Link"
-                        @click="openNeteaseUrl(song.netease_url)"
-                      >
+                      <el-button type="primary" size="small" :icon="Link" @click="openNeteaseUrl(song.netease_url)">
                         打开网易云链接
                       </el-button>
                     </div>
 
                     <div class="detail-actions">
                       <el-dropdown @command="(command) => handleDownloadCommand(command, song)">
-                        <el-button 
-                          type="primary" 
-                          :icon="Download"
-                        >
+                        <el-button type="primary" :icon="Download">
                           下载 <el-icon class="el-icon--right"><arrow-down /></el-icon>
                         </el-button>
                         <template #dropdown>
@@ -450,24 +325,16 @@
                           </el-dropdown-menu>
                         </template>
                       </el-dropdown>
-                      
+
                       <!-- 如果是自己的歌曲，显示管理按钮 -->
                       <template v-if="isMyOwnSong(song)">
-                        <el-button 
-                          type="warning" 
-                          :icon="Edit"
-                          @click="editSong(song)"
-                        >
+                        <el-button type="warning" :icon="Edit" @click="editSong(song)">
                           编辑
                         </el-button>
                       </template>
 
                       <!-- 竞标按钮 -->
-                      <el-button 
-                        type="success" 
-                        :icon="TrophyBase"
-                        @click="showBidDialog(song)"
-                      >
+                      <el-button type="success" :icon="TrophyBase" @click="showBidDialog(song)">
                         竞标
                       </el-button>
                     </div>
@@ -478,32 +345,17 @@
           </div>
 
           <!-- 分页 -->
-          <el-pagination
-            v-if="filteredSongs.length > pageSizeByMode"
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSizeByMode"
-            :page-sizes="cardSize === 'list' ? [20, 30, 50, 100] : [8, 12, 20, 40]"
-            :total="filteredSongs.length"
-            layout="total, sizes, prev, pager, next, jumper"
-            class="pagination"
-            @current-change="handlePageChange"
-            @size-change="handleSizeChange"
-          />
+          <el-pagination v-if="filteredSongs.length > pageSizeByMode" v-model:current-page="currentPage"
+            v-model:page-size="pageSizeByMode" :page-sizes="cardSize === 'list' ? [20, 30, 50, 100] : [8, 12, 20, 40]"
+            :total="filteredSongs.length" layout="total, sizes, prev, pager, next, jumper" class="pagination"
+            @current-change="handlePageChange" @size-change="handleSizeChange" />
         </el-card>
       </el-main>
     </el-container>
 
     <!-- 编辑歌曲对话框 -->
-    <el-dialog
-      v-model="editDialogVisible"
-      title="编辑歌曲信息"
-      width="500px"
-    >
-      <el-form 
-        ref="editFormRef"
-        :model="editForm" 
-        label-width="100px"
-      >
+    <el-dialog v-model="editDialogVisible" title="编辑歌曲信息" width="500px">
+      <el-form ref="editFormRef" :model="editForm" label-width="100px">
         <el-form-item label="歌曲标题">
           <el-input v-model="editForm.title" maxlength="100" show-word-limit />
         </el-form-item>
@@ -520,73 +372,47 @@
     </el-dialog>
 
     <!-- 竞标对话框 -->
-    <el-dialog
-      v-model="bidDialogVisible"
-      title="提交竞标"
-      width="450px"
-    >
-      <el-form
-        :model="bidForm"
-        label-width="80px"
-      >
+    <el-dialog v-model="bidDialogVisible" title="提交竞标" width="450px">
+      <el-form :model="bidForm" label-width="80px">
         <el-form-item label="歌曲">
           <el-text>{{ bidForm.songTitle }}</el-text>
         </el-form-item>
-        
+
         <el-form-item label="竞标轮次">
           <el-text v-if="currentRound">
             {{ currentRound.name }}
           </el-text>
         </el-form-item>
-        
+
         <el-divider />
-        
+
         <el-form-item label="代币余额">
           <el-tag type="info">{{ userToken }} 代币</el-tag>
         </el-form-item>
-        
+
         <el-form-item label="已竞标">
           <el-text>
             {{ myBidsCount }} / {{ maxBids }}
           </el-text>
         </el-form-item>
-        
+
         <el-divider />
-        
+
         <el-form-item label="出价" prop="amount">
-          <el-input-number
-            v-model="bidForm.amount"
-            :min="1"
-            placeholder="输入竞标金额"
-            style="width: 100%"
-          />
+          <el-input-number v-model="bidForm.amount" :min="1" placeholder="输入竞标金额" style="width: 100%" />
         </el-form-item>
-        
-        <el-alert
-          v-if="bidForm.amount && bidForm.amount > userToken"
-          title="代币不足"
-          type="error"
-          :closable="false"
-          style="margin-bottom: 10px"
-        />
-        
-        <el-alert
-          v-if="myBidsCount >= maxBids"
-          title="已达到竞标数量限制"
-          type="warning"
-          :closable="false"
-          style="margin-bottom: 10px"
-        />
+
+        <el-alert v-if="bidForm.amount && bidForm.amount > userToken" title="代币不足" type="error" :closable="false"
+          style="margin-bottom: 10px" />
+
+        <el-alert v-if="myBidsCount >= maxBids" title="已达到竞标数量限制" type="warning" :closable="false"
+          style="margin-bottom: 10px" />
       </el-form>
-      
+
       <template #footer>
         <el-button @click="bidDialogVisible = false">取消</el-button>
-        <el-button 
-          type="success" 
-          @click="handleSubmitBid" 
-          :loading="bidSubmitting"
-          :disabled="!bidForm.amount || bidForm.amount > userToken || myBidsCount >= maxBids"
-        >
+        <el-button type="success" @click="handleSubmitBid" :loading="bidSubmitting"
+          :disabled="!bidForm.amount || bidForm.amount > userToken || myBidsCount >= maxBids">
           提交竞标
         </el-button>
       </template>
@@ -597,13 +423,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  Upload, Picture, VideoCamera, Headset, TrophyBase, Refresh, Search, 
+import {
+  Upload, Picture, VideoCamera, Headset, TrophyBase, Refresh, Search,
   Download, Edit, Delete, User, CaretRight, CaretBottom, Clock, Link, ArrowDown
 } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
-import { 
+import {
   getSongs, uploadSong, getMySongs, updateSong, deleteSong,
   getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, getTargetBids
 } from '@/api'
@@ -710,15 +536,15 @@ const myBidsCount = ref(0)
 // 计算属性：过滤后的歌曲
 const filteredSongs = computed(() => {
   let songs = allSongs.value
-  
+
   // 搜索过滤
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    songs = songs.filter(song => 
+    songs = songs.filter(song =>
       song.title.toLowerCase().includes(keyword)
     )
   }
-  
+
   // 排序
   const sorted = [...songs]
   if (sortBy.value === 'title') {
@@ -734,7 +560,7 @@ const filteredSongs = computed(() => {
       return dateB - dateA
     })
   }
-  
+
   return sorted
 })
 
@@ -763,10 +589,10 @@ const handleAudioChange = (file) => {
     showTitleField.value = false
     return
   }
-  
+
   uploadForm.value.audioFile = file.raw
   audioFileList.value = [file]
-  
+
   // 读取MP3元数据
   extractMP3Title(file.raw)
 }
@@ -783,7 +609,7 @@ const extractMP3Title = async (file) => {
   try {
     const metadata = await parseBlob(file)
     let title = metadata.common?.title || ''
-    
+
     if (title) {
       uploadForm.value.title = title
       showTitleField.value = true
@@ -861,7 +687,7 @@ const handleVideoRemove = () => {
 // 上传歌曲
 const handleUpload = async () => {
   if (!uploadFormRef.value) return
-  
+
   await uploadFormRef.value.validate(async (valid) => {
     if (!valid) {
       return
@@ -948,7 +774,7 @@ const loadMyBids = async () => {
       console.warn('无法获取竞标轮次')
       return
     }
-    
+
     // 找最新的歌曲竞标轮次（优先活跃，其次已完成以显示分配结果）
     let targetSongRound = roundsResponse.rounds.find(r => r.status === 'active' && r.bidding_type === 'song')
     if (!targetSongRound) {
@@ -958,21 +784,21 @@ const loadMyBids = async () => {
         targetSongRound = completedSongRounds[0]  // 已排序，第一个是最新的
       }
     }
-    
+
     if (!targetSongRound) {
       console.log('当前没有活跃或已完成的歌曲竞标轮次')
       currentBidRound.value = null
       myBids.value = []
       return
     }
-    
+
     // 获取该轮次的竞标
     const response = await getMyBids(targetSongRound.id)
     if (response.success) {
       currentBidRound.value = response.round || activeSongRound
       myBids.value = response.bids || []
       maxBids.value = response.max_bids || 5
-      
+
       // 调试日志：显示每个竞标的状态
       console.log('加载歌曲竞标成功，总数:', myBids.value.length)
       myBids.value.forEach((bid, idx) => {
@@ -1031,7 +857,7 @@ const fetchSongBids = async (songId) => {
   } else {
     songBidsMap.value[songId].loading = true
   }
-  
+
   try {
     // 1. 准备参数
     const params = { song_id: songId }
@@ -1040,13 +866,13 @@ const fetchSongBids = async (songId) => {
     // 如果“我的竞标”模块已经加载了当前轮次，直接把 ID 传过去！
     // 这样后端就会直接查这个 ID，不再进行严格的时间校验。
     if (currentBidRound.value && currentBidRound.value.id) {
-        // 借用 currentBidRound ID:', currentBidRound.value.id
-        params.round_id = currentBidRound.value.id
+      // 借用 currentBidRound ID:', currentBidRound.value.id
+      params.round_id = currentBidRound.value.id
     } else {
-        console.warn('urrentBidRound 为空，后端可能找不到轮次')
+      console.warn('urrentBidRound 为空，后端可能找不到轮次')
     }
-    
-    
+
+
     // 2. 发送请求
     const res = await getTargetBids(params)
 
@@ -1091,7 +917,7 @@ const getExtFromUrl = (url, fallback) => {
     const pathname = new URL(url, window.location.origin).pathname
     const idx = pathname.lastIndexOf('.')
     if (idx !== -1) return pathname.substring(idx + 1).split('?')[0].toLowerCase()
-  } catch (e) {}
+  } catch (e) { }
   return fallback
 }
 
@@ -1188,7 +1014,7 @@ const showBidDialog = async (song) => {
         return
       }
       currentRound.value = activeRound
-      
+
       // 获取用户已有的竞标数
       const bidsResponse = await getMyBids(activeRound.id)
       if (bidsResponse.success) {
@@ -1199,13 +1025,13 @@ const showBidDialog = async (song) => {
       ElMessage.warning('无法获取竞标信息')
       return
     }
-    
+
     // 获取用户代币
     const profileResponse = await getUserProfile()
     if (profileResponse && profileResponse.token !== undefined) {
       userToken.value = profileResponse.token
     }
-    
+
     // 设置竞标表单
     bidForm.value = {
       songId: song.id,
@@ -1225,17 +1051,17 @@ const handleSubmitBid = async () => {
     ElMessage.error('请输入有效的竞标金额')
     return
   }
-  
+
   if (myBidsCount.value >= maxBids.value) {
     ElMessage.error(`已达到最大竞标数量限制（${maxBids.value}）`)
     return
   }
-  
+
   if (userToken.value < bidForm.value.amount) {
     ElMessage.error(`代币余额不足（需要${bidForm.value.amount}，现有${userToken.value}）`)
     return
   }
-  
+
   bidSubmitting.value = true
   try {
     const response = await submitBid({
@@ -1243,7 +1069,7 @@ const handleSubmitBid = async () => {
       amount: bidForm.value.amount,
       roundId: currentRound.value.id
     })
-    
+
     if (response.success) {
       ElMessage.success('竞标已提交')
       bidDialogVisible.value = false
@@ -1369,13 +1195,13 @@ const getFullImageUrl = (url) => {
     console.log('图片 URL 为空')
     return null
   }
-  
+
   // 如果已是完整 URL，直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) {
     console.log('使用完整 URL:', url)
     return url
   }
-  
+
   // 相对路径：获取 API 基础 URL 的主机部分
   // API 基础路径是 /api，所以媒体文件应该从相同的主机获取
   // 例如：相对路径 /media/songs/xxx.jpg 应该转换为 http://localhost:8000/media/songs/xxx.jpg
@@ -1413,8 +1239,8 @@ const handleSizeChange = (size) => {
 
 // 滚动到歌曲列表
 const scrollToSongs = () => {
-  document.querySelector('.songs-list-card')?.scrollIntoView({ 
-    behavior: 'smooth' 
+  document.querySelector('.songs-list-card')?.scrollIntoView({
+    behavior: 'smooth'
   })
 }
 
@@ -1424,7 +1250,7 @@ onMounted(async () => {
   currentUser.value = {
     username: localStorage.getItem('username')
   }
-  
+
   await Promise.all([
     loadMySongs(),
     loadMyBids(),
@@ -1772,14 +1598,16 @@ onMounted(async () => {
     font-size: 12px;
   }
 }
+
 /* ========== 新增样式 - 适配暗色主题 ========== */
 .bids-section {
   /* 使用半透明深色背景，而不是白色 */
-  background-color: rgba(0, 0, 0, 0.2); 
+  background-color: rgba(0, 0, 0, 0.2);
   border-radius: 8px;
   padding: 10px 15px;
   margin-bottom: 15px;
-  border: 1px solid var(--border-color); /* 使用全局边框色 */
+  border: 1px solid var(--border-color);
+  /* 使用全局边框色 */
 }
 
 .section-title {
@@ -1789,7 +1617,8 @@ onMounted(async () => {
   margin-bottom: 10px;
   font-size: 14px;
   font-weight: bold;
-  color: var(--text-primary); /* 强制使用主文字颜色 */
+  color: var(--text-primary);
+  /* 强制使用主文字颜色 */
 }
 
 .no-bids {
@@ -1820,7 +1649,8 @@ onMounted(async () => {
 
 /* 高亮我的出价行 - 使用你的主色调 --primary-color 的半透明版本 */
 :deep(.el-table .my-bid-row) {
-  background-color: rgba(122, 200, 255, 0.15) !important; /* 淡淡的蓝色背景 */
+  background-color: rgba(122, 200, 255, 0.15) !important;
+  /* 淡淡的蓝色背景 */
 }
 
 :deep(.el-table .my-bid-row:hover > td.el-table__cell) {
@@ -1835,16 +1665,19 @@ onMounted(async () => {
 /* 自定义文字高亮类 */
 .highlight-self {
   font-weight: bold;
-  color: var(--primary-color) !important; /* #7ac8ff */
+  color: var(--primary-color) !important;
+  /* #7ac8ff */
 }
 
 .highlight-price {
   font-weight: bold;
-  color: var(--warning-color) !important; /* #f0b762 */
+  color: var(--warning-color) !important;
+  /* #f0b762 */
 }
 
 .time-text {
   font-size: 12px;
-  color: var(--text-secondary) !important; /* #9aa4b5 */
+  color: var(--text-secondary) !important;
+  /* #9aa4b5 */
 }
 </style>
