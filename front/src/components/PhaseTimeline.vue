@@ -113,7 +113,7 @@ const getPhaseStatusText = (status) => {
 const loadPhases = async () => {
   try {
     const data = await getCompetitionPhases()
-    phases.value = data.reverse()
+    phases.value = data
   } catch (error) {
     console.error('加载竞赛阶段失败:', error)
   }

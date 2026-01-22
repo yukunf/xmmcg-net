@@ -722,7 +722,7 @@ def target_bids_list(request):
     # 5. 手动序列化 (比用 Serializer 更灵活，且只需返回前端需要的字段)
     results = []
     current_user = request.user
-    #若不许访问在这返回dummy data
+    #若不许访问在这返回dummy data%
     if not round_obj.allow_public_view and not request.user.is_staff:
         results.append({
                 'id': 114,
