@@ -195,11 +195,19 @@
             <el-skeleton :rows="3" animated />
           </div>
 
-          <el-empty 
-            v-else-if="!currentChartBidRound" 
-            description="当前没有活跃的谱面竞标轮次"
-            :image-size="120"
-          />
+          <div v-else-if="!currentChartBidRound">
+            <el-image 
+              src="/res/supi.gif" 
+              style="width: 100px; display: block; margin: 20px auto;"
+            >
+              <template #error>
+                <div class="image-slot"></div>
+              </template>
+            </el-image>
+            <el-text type="info" size="mid" style="display: block; text-align: center;">
+              当前没有活跃的竞标轮次
+            </el-text>
+          </div>
 
           <div v-else>
             <el-alert 
