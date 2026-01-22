@@ -504,9 +504,9 @@ class Bid(models.Model):
         if not self.song and not self.chart:
             raise ValidationError('必须指定竞标目标（歌曲或谱面）')
         
-        # 对于谱面竞标，不能竞标自己的谱面
-        if self.bid_type == 'chart' and self.chart and self.chart.user == self.user:
-            raise ValidationError('不能竞标自己的谱面')
+        # 对于谱面竞标，已改为可以竞标自己的谱面
+        # if self.bid_type == 'chart' and self.chart and self.chart.user == self.user:
+        #     raise ValidationError('不能竞标自己的谱面')
         
         # 验证用户在该轮次中的竞标数量不超过限制
         bid_count = Bid.objects.filter(

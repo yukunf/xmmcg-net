@@ -120,6 +120,46 @@ class SongDetailSerializer(serializers.ModelSerializer):
             return obj.background_video.url
         return None
 
+#匿名化，如果获取数据直接向前端暴露则需要这个
+class SongAnonymousSerializer(serializers.ModelSerializer):
+    """歌曲列表序列化器（返回匿名信息）"""
+    #user = SongUserSerializer(read_only=True)
+    audio_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
+    video_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Song
+        fields = (
+            'id',
+            'title',
+            #'user',
+            'audio_url',
+            'cover_url',
+            'video_url',
+            'netease_url',
+            'file_size',
+            'created_at'
+        )
+        read_only_fields = fields
+    
+    def get_audio_url(self, obj):
+        """获取音频文件 URL"""
+        if obj.audio_file:
+            return obj.audio_file.url
+        return None
+    
+    def get_cover_url(self, obj):
+        """获取封面文件 URL"""
+        if obj.cover_image:
+            return obj.cover_image.url
+        return None
+    
+    def get_video_url(self, obj):
+        """获取背景视频文件 URL"""
+        if obj.background_video:
+            return obj.background_video.url
+        return None
 
 class SongListSerializer(serializers.ModelSerializer):
     """歌曲列表序列化器（返回精简信息）"""
@@ -362,7 +402,76 @@ class ChartSerializer(serializers.ModelSerializer):
             }
         return None
 
+class ChartAnonymousSerializer(serializers.ModelSerializer):
+    """谱面序列化器"""
+    song = SongListSerializer(read_only=True)
+    #username = serializers.CharField(source='user.username', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    chart_file_url = serializers.SerializerMethodField()
+    audio_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
+    video_url = serializers.SerializerMethodField()
+    designer = serializers.CharField(read_only=True)
+    part_one_chart = serializers.SerializerMethodField()
+    completion_bid_result = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Chart
+        fields = (
+            'id', 'song', 'status', 'status_display', 'designer',
+            'audio_file', 'audio_url', 'cover_image', 'cover_url', 'background_video', 'video_url', 'chart_file', 'chart_file_url',
+            'review_count', 'average_score', 'created_at', 'submitted_at', 'review_completed_at',
+            'is_part_one', 'part_one_chart', 'completion_bid_result'
+        )
+        read_only_fields = (
+            'id', 'review_count', 'average_score',
+            'created_at', 'submitted_at', 'review_completed_at'
+        )
+    
+    def _build_url(self, request, field):
+        if field:
+            return request.build_absolute_uri(field.url) if request else field.url
+        return None
 
+    def get_chart_file_url(self, obj):
+        """获取谱面文件的完整URL"""
+        request = self.context.get('request')
+        return self._build_url(request, obj.chart_file)
+
+    def get_audio_url(self, obj):
+        """获取音频文件URL"""
+        request = self.context.get('request')
+        return self._build_url(request, obj.audio_file)
+
+    def get_cover_url(self, obj):
+        """获取封面文件URL"""
+        request = self.context.get('request')
+        return self._build_url(request, obj.cover_image)
+
+    def get_video_url(self, obj):
+        """获取背景视频文件URL"""
+        request = self.context.get('request')
+        return self._build_url(request, obj.background_video)
+
+    def get_part_one_chart(self, obj):
+        """获取第一部分谱面信息"""
+        if obj.part_one_chart:
+            return {
+                'id': obj.part_one_chart.id,
+                'designer': obj.part_one_chart.designer,
+                'status': obj.part_one_chart.status
+            }
+        return None
+
+    def get_completion_bid_result(self, obj):
+        """获取完成竞标结果信息"""
+        if obj.completion_bid_result:
+            return {
+                'id': obj.completion_bid_result.id,
+                'bid_amount': obj.completion_bid_result.bid_amount,
+                'bid_type': obj.completion_bid_result.bid_type
+            }
+        return None
 class ChartCreateSerializer(serializers.ModelSerializer):
     """谱面创建序列化器"""
     

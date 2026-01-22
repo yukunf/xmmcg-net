@@ -22,6 +22,7 @@ from .serializers import (
     SongUploadSerializer,
     SongDetailSerializer,
     SongListSerializer,
+    SongAnonymousSerializer,
     SongUpdateSerializer,
     BannerSerializer,
     AnnouncementSerializer,
@@ -199,7 +200,6 @@ def songs_root(request):
     if request.method == 'GET':
         # 列出所有歌曲
         songs = Song.objects.all()
-        
         # 分页处理
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 10))
@@ -210,7 +210,7 @@ def songs_root(request):
         total_count = songs.count()
         songs_page = songs[start:end]
         
-        serializer = SongListSerializer(songs_page, many=True)
+        serializer = SongAnonymousSerializer(songs_page, many=True)
         
         return Response({
             'success': True,
@@ -1026,6 +1026,7 @@ def auto_create_chart_bidding_round(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+# 已测试过匿名性
 def bid_results_view(request):
     """
     获取竞标分配结果
@@ -1106,7 +1107,7 @@ def charts_root(request):
     GET /api/charts/
     """
     from .models import Chart
-    from .serializers import ChartSerializer
+    from .serializers import ChartSerializer,ChartAnonymousSerializer
 
     charts = Chart.objects.select_related('song', 'user').order_by('-created_at')
 
@@ -1118,7 +1119,7 @@ def charts_root(request):
     total_count = charts.count()
     charts_page = charts[start:end]
 
-    serializer = ChartSerializer(charts_page, many=True, context={'request': request})
+    serializer = ChartAnonymousSerializer(charts_page, many=True, context={'request': request})
 
     return Response({
         'success': True,

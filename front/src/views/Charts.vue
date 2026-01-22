@@ -1113,26 +1113,26 @@ const loadMyBidResult = async () => {
   resultLoading.value = true
   try {
     const res = await getBidResults()
-    console.log('getBidResults 响应:', res)
+    // console.log('getBidResults 响应:', res)
     
     if (res.success && res.results && res.results.length > 0) {
-      console.log('所有中标结果:', res.results)
+      // console.log('所有中标结果:', res.results)
       
       // 优先查找歌曲竞标结果（第一阶段），其次谱面竞标结果（第二阶段）
       let bidResult = res.results.find(r => r.bid_type === 'song')
       if (!bidResult) {
-        console.log('未找到歌曲竞标结果，查找谱面竞标结果...')
+        // console.log('未找到歌曲竞标结果，查找谱面竞标结果...')
         bidResult = res.results.find(r => r.bid_type === 'chart')
       }
       
       if (bidResult) {
-        console.log('✓ 找到中标结果:', bidResult)
+        // console.log('✓ 找到中标结果:', bidResult)
         myBidResult.value = bidResult
         
         // 检查是否已有谱面
         if (myBidResult.value) {
           const chartRes = await getMyCharts()
-          console.log('getMyCharts 响应:', chartRes)
+          // console.log('getMyCharts 响应:', chartRes)
           
           if (chartRes.success && chartRes.charts) {
             if (myBidResult.value.bid_type === 'song') {
@@ -1148,15 +1148,15 @@ const loadMyBidResult = async () => {
                  c.song?.title === (myBidResult.value.chart?.song?.title || myBidResult.value.chart?.song_title))
               )
             }
-            console.log('匹配的谱面:', myChart.value)
+            // console.log('匹配的谱面:', myChart.value)
           }
         }
       } else {
-        console.log('✗ 没有找到任何中标结果')
+        // console.log('✗ 没有找到任何中标结果')
         myBidResult.value = null
       }
     } else {
-      console.log('✗ 没有中标结果')
+      // console.log('✗ 没有中标结果')
       myBidResult.value = null
     }
   } catch (error) {
@@ -1230,18 +1230,6 @@ const loadMyChartBids = async () => {
       myChartBids.value = res.bids?.filter(b => b.bid_type === 'chart') || []
       maxChartBids.value = res.max_bids || 5
       
-      // 调试日志：显示每个竞标的状态
-      console.log('加载谱面竞标成功，总数:', myChartBids.value.length)
-      myChartBids.value.forEach((bid, idx) => {
-        console.log(`竞标 ${idx + 1}:`, {
-          id: bid.id,
-          chart_id: bid.chart?.id,
-          song_title: bid.chart?.song?.title,
-          amount: bid.amount,
-          status: bid.status,
-          bid_type: bid.bid_type
-        })
-      })
     }
   } catch (error) {
     console.error('加载谱面竞标失败:', error)
