@@ -7,7 +7,7 @@
         v-for="(phase, index) in phases"
         :key="phase.id"
         :timestamp="`${formatDate(phase.start_time)} - ${formatDate(phase.end_time)}`"
-        :placement="index % 2 === 0 ? 'top' : 'bottom'"
+        :placement='"top"'
         :type="getPhaseType(phase.status)"
       >
         <div class="phase-item">
@@ -113,7 +113,7 @@ const getPhaseStatusText = (status) => {
 const loadPhases = async () => {
   try {
     const data = await getCompetitionPhases()
-    phases.value = data
+    phases.value = data.reverse()
   } catch (error) {
     console.error('加载竞赛阶段失败:', error)
   }
