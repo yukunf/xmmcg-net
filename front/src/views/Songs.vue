@@ -757,7 +757,7 @@ const loadMySongs = async () => {
     const response = await getMySongs()
     if (response.success) {
       mySongs.value = response.songs || []
-      console.log('加载的我的歌曲:', mySongs.value)
+      //console.log('加载的我的歌曲:', mySongs.value)
     }
   } catch (error) {
     console.error('加载我的歌曲失败:', error)
@@ -800,17 +800,17 @@ const loadMyBids = async () => {
       maxBids.value = response.max_bids || 5
 
       // 调试日志：显示每个竞标的状态
-      console.log('加载歌曲竞标成功，总数:', myBids.value.length)
-      myBids.value.forEach((bid, idx) => {
-        console.log(`竞标 ${idx + 1}:`, {
-          id: bid.id,
-          song_id: bid.song?.id,
-          song_title: bid.song?.title,
-          amount: bid.amount,
-          status: bid.status,
-          bid_type: bid.bid_type
-        })
-      })
+      //console.log('加载歌曲竞标成功，总数:', myBids.value.length)
+      // myBids.value.forEach((bid, idx) => {
+      //   console.log(`竞标 ${idx + 1}:`, {
+      //     id: bid.id,
+      //     song_id: bid.song?.id,
+      //     song_title: bid.song?.title,
+      //     amount: bid.amount,
+      //     status: bid.status,
+      //     bid_type: bid.bid_type
+      //   })
+      // })
     }
   } catch (error) {
     console.error('加载竞标失败:', error)
@@ -1127,16 +1127,16 @@ const editSong = (song) => {
 const handleUpdateSong = async () => {
   updating.value = true
   try {
-    console.log('发送更新请求:', {
-      id: editForm.value.id,
-      title: editForm.value.title,
-      netease_url: editForm.value.netease_url
-    })
+    // console.log('发送更新请求:', {
+    //   id: editForm.value.id,
+    //   title: editForm.value.title,
+    //   netease_url: editForm.value.netease_url
+    // })
     const response = await updateSong(editForm.value.id, {
       title: editForm.value.title,
       netease_url: editForm.value.netease_url
     })
-    console.log('更新响应:', response)
+    //('更新响应:', response)
     if (response.success) {
       ElMessage.success('更新成功')
       editDialogVisible.value = false
@@ -1193,7 +1193,7 @@ const getFullImageUrl = (url) => {
 
   // 如果已是完整 URL，直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) {
-    console.log('使用完整 URL:', url)
+    //console.log('使用完整 URL:', url)
     return url
   }
 
@@ -1204,10 +1204,10 @@ const getFullImageUrl = (url) => {
     // 方法 1：尝试从 API 调用的响应 URL 推断后端服务器
     // 通过发送一个简单的 OPTIONS 请求来获取完整的后端 URL
     const fullUrl = new URL(url, window.API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`).href
-    console.log('转换相对路径为:', fullUrl)
+    //console.log('转换相对路径为:', fullUrl)
     return fullUrl
   } catch (e) {
-    console.error('URL 转换失败:', e)
+    //console.error('URL 转换失败:', e)
     return url
   }
 }
