@@ -16,7 +16,6 @@
           <el-row :gutter="20">
             <el-col :xs="24" :sm="12" :md="6">
               <div class="status-item">
-                <div class="status-label">竞标轮次</div>
                 <div class="status-value">{{ competitionStatus.currentRound || '未开始' }}</div>
               </div>
             </el-col>
