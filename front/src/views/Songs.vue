@@ -587,7 +587,7 @@ onMounted(async () => {
     const result = await getCompetitionPhases(); 
     // 确保结果是数组再赋值，否则给个空数组保底
     allCompetitionPhases.value = Array.isArray(result) ? result : [];
-    console.log("数据加载完毕:", allCompetitionPhases.value);
+    //console.log("数据加载完毕:", allCompetitionPhases.value);
   } catch (error) {
     console.error("获取阶段失败:", error);
   }
