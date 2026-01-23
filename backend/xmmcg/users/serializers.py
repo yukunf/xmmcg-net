@@ -4,7 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from .models import UserProfile
 
-
+USER_DEFAULT_TOKEN = 1000
 class UserRegistrationSerializer(serializers.ModelSerializer):
     qqid = serializers.CharField(required=True, write_only=True)
     """用户注册序列化器"""
@@ -62,7 +62,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         # 创建用户资料（包含 token）
-        UserProfile.objects.create(user=user, qqid=qqid, token=0) # 已经获得了QQID。
+        UserProfile.objects.create(user=user, qqid=qqid, token=USER_DEFAULT_TOKEN) # 已经获得了QQID。
         return user
 
 
