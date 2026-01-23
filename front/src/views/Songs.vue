@@ -11,13 +11,13 @@
               </el-icon>
               <span>上传歌曲</span>
               <el-tag v-if="mySongs.length > 0" type="info" size="small">
-                已上传 {{ mySongs.length }}/2 首
+                已上传 {{ mySongs.length }}/{{maxSongUploadsAllowed}} 首
               </el-tag>
             </div>
           </template>
 
           <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadRules" label-width="100px"
-            :disabled="uploading || mySongs.length >= 2">
+            :disabled="uploading || mySongs.length >= maxSongUploadsAllowed">
             <el-form-item label="音频文件" prop="audioFile">
               <el-upload ref="audioUploadRef" :auto-upload="false" :limit="1" :on-change="handleAudioChange"
                 :on-remove="handleAudioRemove" accept=".mp3" :file-list="audioFileList">
@@ -505,6 +505,7 @@ const maxBids = ref(5)
 const songBidsMap = ref({})
 
 // 歌曲列表
+const maxSongUploadsAllowed = 2 // 每个人允许上传的歌曲数量
 const songsLoading = ref(false)
 const allSongs = ref([])
 const expandedSongs = ref([])
@@ -843,7 +844,7 @@ const loadSongs = async () => {
     ElMessage.error('加载歌曲列表失败')
   } finally {
     songsLoading.value = false
-  }
+  }s
 }
 // 切换卡片展开状态（调试版）
 const toggleExpand = async (songId) => {
