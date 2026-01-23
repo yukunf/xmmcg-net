@@ -73,7 +73,7 @@
                 {{ uploading ? '上传中...' : '上传歌曲' }}
               </el-button>
               <el-button @click="resetUploadForm">重置</el-button>
-              <el-text v-if="mySongs.length >= 2" type="warning" size="small">
+              <el-text v-if="mySongs.length >= maxSongUploadsAllowed" type="warning" size="small">
                 已达到上传上限，如需上传新歌曲请先删除旧歌曲
               </el-text>
             </el-form-item>
