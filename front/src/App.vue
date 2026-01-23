@@ -15,7 +15,9 @@
           <span class="tooltip-text">✧はるかっかー✧</span>
         </div>
       </div>
-      <p>&copy; 2026 XMMCG. All rights reserved.</p>
+      <p>&copy; 2026 xmmcg.net 开源的maimai自制比赛平台</p>
+      <p>感谢各位谱师的创作</p>
+      <p>欢迎在<a href="https://github.com/yukunf/xmmcg-net">Github</a>为功能提出反馈，或者Star一下</p>
     </footer>
   </div>
 </template>
