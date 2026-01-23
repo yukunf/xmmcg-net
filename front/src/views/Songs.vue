@@ -448,6 +448,7 @@ import {
   getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, getTargetBids, getCompetitionPhases
 } from '@/api'
 import { parseBlob } from 'music-metadata'
+import { getCurrentPhase } from '../api'
 
 // 用户信息
 const currentUser = ref(null)
@@ -584,10 +585,10 @@ const filteredSongs = computed(() => {
 
 onMounted(async () => {
   try {
-    const result = await getCompetitionPhases(); 
+    const result = await getCompetitionPhases();
     // 确保结果是数组再赋值，否则给个空数组保底
     allCompetitionPhases.value = Array.isArray(result) ? result : [];
-    //console.log("数据加载完毕:", allCompetitionPhases.value);
+    console.log("数据加载完毕:", allCompetitionPhases.value);
   } catch (error) {
     console.error("获取阶段失败:", error);
   }
@@ -601,7 +602,7 @@ const isMusicSubmissionPhase = () => {
   }
 
   // 检查是否存在 music_submit
-  return allCompetitionPhases.value.some(phase => phase.phase_key === "music_submit");
+  return allCompetitionPhases.value.some(phase => (phase.phase_key === "music_submit" && phase.is_active));
 }
 
 // 计算属性：分页后的歌曲
