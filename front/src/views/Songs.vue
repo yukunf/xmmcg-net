@@ -511,7 +511,7 @@ const maxBids = ref(5)
 const songBidsMap = ref({})
 
 // 歌曲列表
-const maxSongUploadsAllowed = 2 // 每个人允许上传的歌曲数量
+const maxSongUploadsAllowed = 3 // 每个人允许上传的歌曲数量
 const songsLoading = ref(false)
 const allSongs = ref([])
 const expandedSongs = ref([])

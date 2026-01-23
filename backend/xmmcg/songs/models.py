@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 
 # ==================== 可调整的常量 ====================
 # 每个用户可上传的歌曲数量限制
-MAX_SONGS_PER_USER = 2
+MAX_SONGS_PER_USER = 3
 
 # 每个用户可以竞标的歌曲数量限制
 MAX_BIDS_PER_USER = 5
