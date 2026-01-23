@@ -10,14 +10,17 @@
                 <Upload />
               </el-icon>
               <span>上传歌曲</span>
-              <el-tag v-if="mySongs.length > 0" type="info" size="small">
+              <el-tag v-if="mySongs.length > 0" type="info" size="small"> <!-- TODO 设置过时间锁定上传-->
                 已上传 {{ mySongs.length }}/{{maxSongUploadsAllowed}} 首
+              </el-tag>
+              <el-tag v-if="!isMusicSubmissionPhase()" type="info" size="small">
+                当前不允许提交
               </el-tag>
             </div>
           </template>
 
           <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadRules" label-width="100px"
-            :disabled="uploading || mySongs.length >= maxSongUploadsAllowed">
+            :disabled="uploading || !isMusicSubmissionPhase() || mySongs.length >= maxSongUploadsAllowed">
             <el-form-item label="音频文件" prop="audioFile">
               <el-upload ref="audioUploadRef" :auto-upload="false" :limit="1" :on-change="handleAudioChange"
                 :on-remove="handleAudioRemove" accept=".mp3" :file-list="audioFileList">
@@ -66,7 +69,7 @@
             </el-form-item>
 
             <el-form-item>
-              <el-button type="primary" @click="handleUpload" :loading="uploading" :disabled="mySongs.length >= 2">
+              <el-button type="primary" @click="handleUpload" :loading="uploading" :disabled="mySongs.length >= 2 || !isMusicSubmissionPhase()">
                 {{ uploading ? '上传中...' : '上传歌曲' }}
               </el-button>
               <el-button @click="resetUploadForm">重置</el-button>
@@ -442,7 +445,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import {
   getSongs, uploadSong, getMySongs, updateSong, deleteSong,
-  getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, getTargetBids
+  getMyBids, getBiddingRounds, submitBid, getUserProfile, deleteBid, getTargetBids, getCompetitionPhases
 } from '@/api'
 import { parseBlob } from 'music-metadata'
 
@@ -494,9 +497,12 @@ const uploadRules = {
   ]
 }
 
+// 验证是否
+
 // 我的歌曲
 const mySongs = ref([])
 
+const allCompetitionPhases = ref([])
 // 竞标相关
 const bidsLoading = ref(false)
 const currentBidRound = ref(null)
@@ -575,6 +581,28 @@ const filteredSongs = computed(() => {
 
   return sorted
 })
+
+onMounted(async () => {
+  try {
+    const result = await getCompetitionPhases(); 
+    // 确保结果是数组再赋值，否则给个空数组保底
+    allCompetitionPhases.value = Array.isArray(result) ? result : [];
+    console.log("数据加载完毕:", allCompetitionPhases.value);
+  } catch (error) {
+    console.error("获取阶段失败:", error);
+  }
+});
+
+// 3. 修改你的判断函数（不再调用 getCompetitionPhases，而是直接读变量）
+const isMusicSubmissionPhase = () => {
+  // 安全检查：如果数据还没回来（是空的），直接返回 false
+  if (!allCompetitionPhases.value || allCompetitionPhases.value.length === 0) {
+      return false;
+  }
+
+  // 检查是否存在 music_submit
+  return allCompetitionPhases.value.some(phase => phase.phase_key === "music_submit");
+}
 
 // 计算属性：分页后的歌曲
 const paginatedSongs = computed(() => {
@@ -844,7 +872,7 @@ const loadSongs = async () => {
     ElMessage.error('加载歌曲列表失败')
   } finally {
     songsLoading.value = false
-  }s
+  }
 }
 // 切换卡片展开状态（调试版）
 const toggleExpand = async (songId) => {
@@ -1011,7 +1039,7 @@ const openNeteaseUrl = (url) => {
 const showBidDialog = async (song) => {
   // 加载当前竞标轮次和用户信息
   try {
-    // 获取竞标轮次（从 CompetitionPhase 获取）
+    // 获取竞标轮次（从 Competition1 获取）
     const roundsResponse = await getBiddingRounds()
     if (roundsResponse.success && roundsResponse.rounds.length > 0) {
       // 找活跃的歌曲竞标阶段（bidding_type='song'）
