@@ -69,7 +69,7 @@
             </el-form-item>
 
             <el-form-item>
-              <el-button type="primary" @click="handleUpload" :loading="uploading" :disabled="mySongs.length >= 2 || !isMusicSubmissionPhase()">
+              <el-button type="primary" @click="handleUpload" :loading="uploading" :disabled="mySongs.length >= maxSongUploadsAllowed || !isMusicSubmissionPhase()">
                 {{ uploading ? '上传中...' : '上传歌曲' }}
               </el-button>
               <el-button @click="resetUploadForm">重置</el-button>
