@@ -23,7 +23,7 @@ const getBaseURL = () => {
 // 创建 axios 实例
 const api = axios.create({
   baseURL: getBaseURL(),
-  timeout: 60000,
+  timeout: 90000,
   headers: {
     'Content-Type': 'application/json'
   },
