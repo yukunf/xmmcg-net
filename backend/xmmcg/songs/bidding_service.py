@@ -294,8 +294,8 @@ class BiddingService:
             raise ValidationError('用户资料不存在')
         
         # 验证竞标金额
-        if amount <= 0:
-            raise ValidationError('竞标金额必须大于0')
+        if amount < 0:
+            raise ValidationError('竞标金额必须大于等于0')
         
         # # 对于谱面竞标，验证不能竞标自己的谱面  修改：我们现在允许竞标自己的
         # if chart and chart.user == user:
