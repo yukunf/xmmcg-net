@@ -1016,19 +1016,10 @@ const fetchAndAdd = async (url, filename, optional = false) => {
     // 2. 彻底净化的 fetch 请求
     const res = await fetch(noCacheUrl, { 
         method: 'GET',
-        
         // 【关键】模式设为 cors
         mode: 'cors', 
-        
         // 【关键】绝对禁止发送 Cookie
-        credentials: 'omit', 
-        
-        // 【关键】手动清空 Headers，防止 Axios/全局拦截器自动塞入 Authorization Token
-        headers: {
-            // 这里什么都不填，或者显式覆盖掉全局可能存在的头
-            'Authorization': undefined, 
-            'X-Access-Token': undefined
-        }
+        credentials: 'omit',
     })
 
     if (!res.ok) throw new Error(`下载失败: ${res.status}`)
