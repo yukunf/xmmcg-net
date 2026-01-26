@@ -326,8 +326,8 @@
                         打开歌曲链接
                       </el-button>
                     </div>
-                    <div class="detail-item">
-                        <media-player title="播放乐曲" :src="song.audio_url">
+                    <div>
+                        <media-player style="--audio-play-button-bg:#171d29" title="播放歌曲" :src="song.audio_url">
                           <media-provider></media-provider>
                           <media-audio-layout></media-audio-layout>
                         </media-player>
@@ -1728,5 +1728,12 @@ onMounted(async () => {
   font-size: 12px;
   color: var(--text-secondary) !important;
   /* #9aa4b5 */
+}
+
+:deep(.vds-audio-layout .vds-play-button-button) {
+  /* 强制图标颜色为深色 (Element Plus 的主文本色) */
+  background-color: #33363c !important; 
+  /* 如果需要背景色，可以加上下面这行，不需要则去掉 */
+  /* background-color: rgba(255, 255, 255, 0.9) !important; */
 }
 </style>
