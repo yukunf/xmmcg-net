@@ -326,6 +326,12 @@
                         打开歌曲链接
                       </el-button>
                     </div>
+                    <div class="detail-item">
+                        <media-player title="播放乐曲" :src="song.audio_url">
+                          <media-provider></media-provider>
+                          <media-audio-layout></media-audio-layout>
+                        </media-player>
+                    </div>
 
                     <div class="detail-actions">
                       <el-dropdown @command="(command) => handleDownloadCommand(command, song)">
@@ -449,6 +455,13 @@ import {
 } from '@/api'
 import { parseBlob } from 'music-metadata'
 import { getCurrentPhase } from '../api'
+// Vidstack播放器相关
+import 'vidstack/player/styles/default/theme.css';
+import 'vidstack/player/styles/default/layouts/audio.css';
+import 'vidstack/player'
+import 'vidstack/player/layouts/default'
+import 'vidstack/player/ui'
+
 
 // 用户信息
 const currentUser = ref(null)
