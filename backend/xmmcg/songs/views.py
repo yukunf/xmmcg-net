@@ -722,22 +722,25 @@ def target_bids_list(request):
     # 5. 手动序列化 (比用 Serializer 更灵活，且只需返回前端需要的字段)
     results = []
     current_user = request.user
-    #若不许访问在这返回dummy data%
-    if not round_obj.allow_public_view and not request.user.is_staff:
-        results.append({
-                'id': 114,
-                'amount': 114514,
-                'username': "现在没法看哟",  # 显示匿名用户名
-                # 'user_id': bid.user.id,       # 如果需要点击跳转用户主页
-                'created_at': None,
-                'is_self': False,  # 关键字段：是否是当前用户
-                'is_dropped': False
-            })
-    else:
-        for bid in bids_qs:
-            raw_username = bid.user.username
-            hash_obj = hashlib.md5(raw_username.encode('utf-8'))
-            anonymous_name = hash_obj.hexdigest()[:6].upper()
+
+    for bid in bids_qs:
+        
+        raw_username = bid.user.username
+        hash_obj = hashlib.md5(raw_username.encode('utf-8'))
+        anonymous_name = hash_obj.hexdigest()[:6].upper()
+        if not round_obj.allow_public_view and not request.user.is_staff:
+            #若不许访问在这里抹去竞价价格
+            results.append({
+            'id': bid.id,
+            'amount': 114514,
+            'username': anonymous_name,  # 显示匿名用户名
+            # 'user_id': bid.user.id,       # 如果需要点击跳转用户主页
+            'created_at': bid.created_at,
+            'is_self': bid.user == current_user,  # 关键字段：是否是当前用户
+            'is_dropped': bid.is_dropped
+        })
+
+        else:
             results.append({
                 'id': bid.id,
                 'amount': bid.amount,
