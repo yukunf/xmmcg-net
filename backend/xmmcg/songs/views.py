@@ -510,7 +510,7 @@ def user_bids_root(request):
         round_id = request.data.get('round_id')
         
         # 验证必须提供song_id或chart_id，二选一
-        if not (song_id or chart_id) or not amount:
+        if not (song_id or chart_id) or amount is None:
             return Response({
                 'success': False,
                 'message': '缺少必要字段：(song_id或chart_id), amount'

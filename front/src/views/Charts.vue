@@ -499,7 +499,7 @@
         <el-form-item label="出价" prop="amount">
           <el-input-number
             v-model="chartBidForm.amount"
-            :min="1"
+            :min="0"
             placeholder="输入竞标金额"
             style="width: 100%"
           />
@@ -528,7 +528,7 @@
           type="success" 
           @click="handleSubmitChartBid" 
           :loading="chartBidSubmitting"
-          :disabled="chartBidForm.amount < 0 || chartBidForm.amount > userChartBidToken || myChartBidsCount >= maxChartBids"
+          :disabled="chartBidForm.amount == null || chartBidForm.amount > userChartBidToken || myChartBidsCount >= maxChartBids"
         >
           提交竞标
         </el-button>
@@ -1355,7 +1355,7 @@ const showChartBidDialog = async (chart) => {
 }
 
 const handleSubmitChartBid = async () => {
-  if (!chartBidForm.chartId || chartBidForm.amount < 0 || chartBidForm.amount <= 0) {
+  if (!chartBidForm.chartId || chartBidForm.amount === null || chartBidForm.amount < 0) {
     ElMessage.error('请输入有效的竞标金额')
     return
   }
