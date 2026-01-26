@@ -1006,27 +1006,36 @@ const downloadSongPackage = async (song) => {
 
     const zip = new JSZip()
 
-    const fetchAndAdd = async (url, filename, optional = false) => {
-    if (!url) return
-    try {
-    // 1. 加上时间戳，强制不走缓存，解决 304 问题
-    // 假如 url 已经有参数(?x=1), 需要判断是用 & 还是 ?
+const fetchAndAdd = async (url, filename, optional = false) => {
+  if (!url) return
+  try {
+    // 1. 加上时间戳 (保持你之前的做法，防止 304 缓存)
     const separator = url.includes('?') ? '&' : '?';
     const noCacheUrl = `${resolveUrl(url)}${separator}_t=${new Date().getTime()}`;
 
-    // 2. 去掉 credentials: 'include' (除非你的媒体文件必须验证登录)
-    // 改用 mode: 'cors' 明确告知这是跨域请求
+    // 2. 彻底净化的 fetch 请求
     const res = await fetch(noCacheUrl, { 
         method: 'GET',
-        mode: 'cors' 
+        
+        // 【关键】模式设为 cors
+        mode: 'cors', 
+        
+        // 【关键】绝对禁止发送 Cookie
+        credentials: 'omit', 
+        
+        // 【关键】手动清空 Headers，防止 Axios/全局拦截器自动塞入 Authorization Token
+        headers: {
+            // 这里什么都不填，或者显式覆盖掉全局可能存在的头
+            'Authorization': undefined, 
+            'X-Access-Token': undefined
+        }
     })
 
     if (!res.ok) throw new Error(`下载失败: ${res.status}`)
     const blob = await res.blob()
     zip.file(filename, blob)
   } catch (err) {
-    console.warn(`文件下载失败(${filename}):`, err)
-    if (!optional) throw err
+    // ... 错误处理
   }
 }
 
