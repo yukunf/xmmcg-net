@@ -1006,57 +1006,19 @@ const downloadSongPackage = async (song) => {
 
     const zip = new JSZip()
 
-const fetchAndAdd = async (url, filename, optional = false) => {
-  if (!url) return;
-
-  // 1) resolve + no-cache
-  const resolved = resolveUrl(url);
-  const sep = resolved.includes('?') ? '&' : '?';
-  const noCacheUrl = `${resolved}${sep}_t=${Date.now()}`;
-
-  console.log('[download] request =>', { filename, noCacheUrl });
-
-  try {
-    const isSameOrigin = new URL(noCacheUrl).origin === window.location.origin;
-
-    const res = await fetch(noCacheUrl, {
-      method: 'GET',
-      mode: 'cors',
-      // ✅ 同源带 cookie；跨域不需要 cookie 就 omit；跨域需要 cookie 就 include
-      credentials: isSameOrigin ? 'same-origin' : 'include',
-      // headers: {} // 如果你确实有 token，再在这里“有值才加”
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`下载失败: ${res.status} ${res.statusText} body=${text.slice(0,200)}`);
+    const fetchAndAdd = async (url, filename, optional = false) => {
+      if (!url) return
+      try {
+        const fullUrl = resolveUrl(url)
+        const res = await fetch(fullUrl, { credentials: 'include' })
+        if (!res.ok) throw new Error(`下载失败: ${res.status}`)
+        const blob = await res.blob()
+        zip.file(filename, blob)
+      } catch (err) {
+        console.warn(`文件下载失败(${filename}):`, err)
+        if (!optional) throw err
+      }
     }
-
-    const ct = res.headers.get('content-type') || '';
-    const len = res.headers.get('content-length') || '';
-    console.log('[download] response <=', { filename, ct, len });
-
-    // ✅ 防止 200 + 错误页
-    if (filename.endsWith('.mp4') && !ct.includes('video')) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`期望 mp4 但拿到 ${ct}. body=${text.slice(0,200)}`);
-    }
-
-    const blob = await res.blob();
-
-    // ✅ 防止空/超小文件（可选）
-    if (!optional && blob.size < 1024) {
-      const text = await blob.text().catch(() => '');
-      throw new Error(`文件太小(${blob.size}B)，疑似错误响应: ${text.slice(0,200)}`);
-    }
-
-    zip.file(filename, blob);
-  } catch (err) {
-    console.error('[download] add failed:', filename, err);
-    if (!optional) throw err; // 主文件失败直接终止
-    // optional 允许忽略
-  }
-}
 
     await fetchAndAdd(song.audio_url, 'track.mp3')
 
