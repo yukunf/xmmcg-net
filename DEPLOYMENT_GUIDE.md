@@ -762,6 +762,42 @@ sudo systemctl restart gunicorn
 git config --global --add safe.directory /opt/xmmcg
 ```
 
+#### 问题11：下载文件带CORS导致ERR 200 OK
+**错误** : `ERROR 200 (OK)`
+**解决**：服务器上媒体映射到`/var/www/media/...`，获得`/media`开始的路径应该直接拿相对路径向nginx请求。
+
+修复代码：
+
+```python
+const resolveUrl = (url) => {
+  if (!url) return null
+
+  // 1. 如果已经是完整的绝对路径（比如外链），直接返回，不动它
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+
+  // 2. 判断当前是否在开发环境
+  // 通常开发环境 hostname 是 localhost 或 127.0.0.1
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+  if (isDev) {
+    // === 开发环境 ===
+    // 必须拼接后端地址，否则请求会发给前端开发服务器 (如 port 5173)
+    // 这里默认后端是 8000，如果你的 window.API_BASE_URL 没设置，就会用这个兜底
+    const apiBase = window.API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`
+    try {
+      return new URL(url, apiBase).href
+    } catch (e) {
+      return `${apiBase}${url}`
+    }
+  } else {
+    // === 生产/远程环境 ===
+    // 返回相对路径 (如 "/media/songs/xxx.mp3")
+    // 浏览器会自动把它当作 https://xmmcg.majdata.net/media/...
+    // 【关键】同源请求不触发 CORS 检查！
+    return url.startsWith('/') ? url : `/${url}`
+  }
+}
+```
 
 
 ---
