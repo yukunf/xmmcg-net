@@ -43,38 +43,48 @@
         <el-empty v-if="reviewTasks.length === 0" description="暂无评分任务" />
         
         <div v-else class="tasks-list">
-          <div 
-            v-for="(task, index) in reviewTasks" 
-            :key="task.allocation_id || `extra-${task.chart_id}`"
-            class="task-item"
-          >
-            <div class="task-info">
-              <span class="task-title">{{ getTaskDisplayName(task) }}</span>
-              <el-tag v-if="task.isExtra" type="warning" size="small" style="margin-left: 10px;">额外</el-tag>
-            </div>
+        <div 
+          v-for="(task, index) in reviewTasks" 
+          :key="task.allocation_id || `extra-${task.chart_id}`"
+          class="task-item"
+        >
+          <div class="task-info">
+            <span class="task-title">{{ getTaskDisplayName(task) }}</span>
+            <el-tag v-if="task.isExtra" type="warning" size="small" style="margin-left: 10px;">额外</el-tag>
+          </div>
+          
+          <div class="task-actions" style="display: flex; align-items: center;">
+            <el-input
+              v-model="task.comment"
+              type="textarea"
+              :rows="1"
+              autosize
+              placeholder="请输入评语"
+              style="width: 300px; margin-right: 15px;"
+            />
+
+            <el-input-number
+              v-model="task.score"
+              :min="0"
+              :max="maxScore"
+              :precision="0"
+              :step="1"
+              placeholder="请输入分数"
+              style="width: 150px;"
+            />
             
-            <div class="task-actions">
-              <el-input-number
-                v-model="task.score"
-                :min="0"
-                :max="maxScore"
-                :precision="0"
-                :step="1"
-                placeholder="请输入分数"
-                style="width: 150px;"
-              />
-              <el-button 
-                v-if="task.isExtra" 
-                type="danger" 
-                size="small" 
-                @click="removeExtraTask(index)"
-                style="margin-left: 10px;"
-              >
-                删除
-              </el-button>
-            </div>
+            <el-button 
+              v-if="task.isExtra" 
+              type="danger" 
+              size="small" 
+              @click="removeExtraTask(index)"
+              style="margin-left: 10px;"
+            >
+              删除
+            </el-button>
           </div>
         </div>
+      </div>
 
         <div v-if="reviewTasks.length > 0" class="submit-section">
           <el-button 
@@ -116,6 +126,7 @@
     </el-dialog>
   </div>
 </template>
+
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
