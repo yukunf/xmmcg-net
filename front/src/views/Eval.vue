@@ -72,7 +72,19 @@
               placeholder="请输入分数"
               style="width: 150px;"
             />
-            
+
+            <el-tooltip :content="task.favorite ? '取消真爱票' : '设为真爱票'" placement="top">
+              <el-button
+                type="text"
+                @click="task.favorite = !task.favorite"
+                style="margin-left: 10px; font-size: 24px; padding: 0;"
+              >
+                <i 
+                  :class="task.favorite ? 'el-icon-s-heart' : 'el-icon-heart'"
+                  :style="{ color: task.favorite ? '#F56C6C' : '#C0C4CC', transition: 'color 0.3s' }"
+                ></i>
+              </el-button>
+            </el-tooltip>
             <el-button 
               v-if="task.isExtra" 
               type="danger" 
@@ -133,6 +145,7 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getMyCharts, getCharts } from '../api'
+import { fa } from 'element-plus/es/locale/index.mjs'
 
 const loading = ref(true)
 const submitting = ref(false)
@@ -170,6 +183,7 @@ const loadData = async () => {
       designer: task.chart_designer || '未知谱师',  // 添加谱师信息
       score: null,
       comments: '',
+      favorite: false,
       isExtra: false  // 系统分配的任务不是额外任务
     })) || []
     
@@ -251,12 +265,12 @@ const submitReviews = async () => {
     // 提交系统分配的任务
     const systemPromises = systemTasks
       .filter(task => task.score !== null && task.score !== '')
-      .map(task => submitReview(task.allocation_id, task.score, task.comments))
+      .map(task => submitReview(task.allocation_id, task.score, task.comments, task.favorite))
 
     // 提交额外评分
     const extraPromises = extraTasks
       .filter(task => task.score !== null && task.score !== '')
-      .map(task => submitExtraReview(task.chart_id, task.score, task.comments))
+      .map(task => submitExtraReview(task.chart_id, task.score, task.comments, task.favorite))
 
     // 并发提交所有评分
     await Promise.all([...systemPromises, ...extraPromises])
@@ -354,6 +368,7 @@ const addExtraTask = () => {
     designer: chart.designer || '未知谱师',  // 添加谱师信息
     score: null,
     comments: '',
+    favorite: false,
     isExtra: true
   })
   
