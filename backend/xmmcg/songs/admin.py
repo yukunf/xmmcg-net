@@ -350,7 +350,7 @@ class PeerReviewAllocationAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('分配信息', {
-            'fields': ('reviewer', 'chart', 'status')
+            'fields': ('bidding_round', 'reviewer', 'chart', 'status')
         }),
         ('时间', {
             'fields': ('allocated_at',),
@@ -372,7 +372,7 @@ class PeerReviewAdmin(admin.ModelAdmin):
             'fields': ('allocation', 'reviewer', 'chart')
         }),
         ('评分内容', {
-            'fields': ('score', 'comment')
+            'fields': ('score', 'comment', 'favorite')
         }),
         ('时间', {
             'fields': ('created_at',),
