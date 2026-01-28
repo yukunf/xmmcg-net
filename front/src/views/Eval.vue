@@ -73,18 +73,24 @@
               style="width: 150px;"
             />
 
-            <el-tooltip :content="task.favorite ? '取消真爱票' : '设为真爱票'" placement="top">
-              <el-button
-                type="text"
-                @click="task.favorite = !task.favorite"
-                style="margin-left: 10px; font-size: 24px; padding: 0;"
+              <el-tooltip 
+                :content="task.favorite ? '取消真爱票' : '设为真爱票'" 
+                placement="top"
               >
-                <i 
-                  :class="task.favorite ? 'el-icon-s-heart' : 'el-icon-heart'"
-                  :style="{ color: task.favorite ? '#F56C6C' : '#C0C4CC', transition: 'color 0.3s' }"
-                ></i>
-              </el-button>
-            </el-tooltip>
+                <el-button
+                  type="text"
+                  @click="task.favorite = !task.favorite"
+                  style="margin-left: 10px; padding: 0;"
+                >
+                  <el-icon 
+                    :size="24"
+                    :color="task.favorite ? 'var(--el-color-danger)' : 'var(--el-text-color-placeholder)'"
+                    style="transition: color 0.3s;"
+                  >
+                    <component :is="task.favorite ? 'StarFilled' : 'Star'" />
+                  </el-icon>
+                </el-button>
+              </el-tooltip>
             <el-button 
               v-if="task.isExtra" 
               type="danger" 
@@ -146,6 +152,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getMyCharts, getCharts } from '../api'
 import { fa } from 'element-plus/es/locale/index.mjs'
+import { Star, StarFilled } from '@element-plus/icons-vue'
+
+
 
 const loading = ref(true)
 const submitting = ref(false)
@@ -433,14 +442,16 @@ const removeExtraTask = (index) => {
   justify-content: space-between;
   align-items: center;
   padding: 15px;
-  background-color: #f5f7fa;
+  background-color: var(--el-bg-color-page);
+  border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   transition: all 0.3s;
 }
 
 .task-item:hover {
-  background-color: #e8eaf0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  box-shadow: 0 2px 8px var(--el-box-shadow-light);
 }
 
 .task-info {
@@ -453,12 +464,12 @@ const removeExtraTask = (index) => {
 .task-title {
   font-size: 16px;
   font-weight: 500;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .task-designer {
   font-size: 14px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 .task-actions {
@@ -471,6 +482,6 @@ const removeExtraTask = (index) => {
   margin-top: 30px;
   text-align: center;
   padding-top: 20px;
-  border-top: 1px solid #dcdfe6;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>
