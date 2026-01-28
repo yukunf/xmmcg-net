@@ -1475,6 +1475,7 @@ def submit_peer_review(request, allocation_id):
     user = request.user
     score = request.data.get('score')
     comment = request.data.get('comment', '')
+    favorite = request.data.get('favorite', False)
     
     # 验证score
     if score is None:
@@ -1496,7 +1497,7 @@ def submit_peer_review(request, allocation_id):
     allocation = get_object_or_404(PeerReviewAllocation, id=allocation_id, reviewer=user)
     
     try:
-        review = PeerReviewService.submit_peer_review(allocation_id, score, comment)
+        review = PeerReviewService.submit_peer_review(allocation_id, score, comment, favorite)
         serializer = PeerReviewSerializer(review)
         return Response({
             'success': True,
@@ -1541,6 +1542,7 @@ def submit_extra_peer_review(request):
     - chart_id: 谱面ID
     - score: 评分（0-最大分数）
     - comments: 评论（可选）
+    - favorite: 真爱票，默认false
     """
     from .models import Chart, PeerReview, PeerReviewAllocation
     from .serializers import PeerReviewSerializer
@@ -1550,6 +1552,7 @@ def submit_extra_peer_review(request):
     chart_id = request.data.get('chart_id')
     score = request.data.get('score')
     comments = request.data.get('comments', '')
+    favorite = request.data.get('favorite', False)
     
     # 验证参数
     if not chart_id:
@@ -1595,6 +1598,8 @@ def submit_extra_peer_review(request):
     existing_extra_review = PeerReview.objects.filter(
         reviewer=user,
         chart=chart,
+        comments=comments,
+        favorite=favorite,
         allocation__isnull=True  # 额外评分没有allocation
     ).first()
     
@@ -1602,6 +1607,7 @@ def submit_extra_peer_review(request):
         # 更新已有的额外评分
         existing_extra_review.score = score
         existing_extra_review.comments = comments
+        existing_extra_review.favorite = favorite
         existing_extra_review.save()
         
         serializer = PeerReviewSerializer(existing_extra_review)
@@ -1617,7 +1623,8 @@ def submit_extra_peer_review(request):
         reviewer=user,
         allocation=None,  # 额外评分没有allocation
         score=score,
-        comments=comments
+        comments=comments,
+        favorite=favorite
     )
     
     serializer = PeerReviewSerializer(review)

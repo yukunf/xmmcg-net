@@ -565,7 +565,7 @@ class PeerReviewSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PeerReview
-        fields = ('id', 'score', 'comment', 'created_at')
+        fields = ('id', 'score', 'comment', 'favorite', 'created_at')
         read_only_fields = ('id', 'created_at')
 
 
@@ -574,10 +574,11 @@ class PeerReviewSubmitSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PeerReview
-        fields = ('score', 'comment')
+        fields = ('score', 'comment', 'favorite')
         extra_kwargs = {
             'score': {'required': True},
             'comment': {'required': False},
+            'favorite': {'required': True},
         }
     
     def validate_score(self, value):

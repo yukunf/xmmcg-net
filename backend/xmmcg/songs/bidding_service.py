@@ -734,7 +734,7 @@ class PeerReviewService:
         }
     
     @staticmethod
-    def submit_peer_review(allocation_id, score, comment=None):
+    def submit_peer_review(allocation_id, score, comment=None,favorite=False):
         """
         提交互评打分
         
@@ -769,7 +769,8 @@ class PeerReviewService:
             reviewer=allocation.reviewer,
             chart=allocation.chart,
             score=score,
-            comment=comment
+            comment=comment,
+            favorite=favorite,
         )
         
         # 标记分配为已完成
@@ -824,7 +825,7 @@ class PeerReviewService:
         
         return PeerReview.objects.filter(
             chart=chart
-        ).values('score', 'comment', 'created_at').order_by('-created_at')
+        ).values('score', 'comment', 'favorite', 'created_at').order_by('-created_at')
 
 # ==================== 第二轮竞标服务 ====================
 
