@@ -253,6 +253,7 @@ class BiddingRoundAdmin(admin.ModelAdmin):
                 submitted_charts = Chart.objects.filter(
                     bidding_round=bidding_round,
                     status__in=['final_submitted', 'submitted', 'under_review', 'reviewed']
+                    # TODO Submitted这个状态应当被移除，因为他可被final和part提交替代，但是他在这里和其他地方都混用了，且理应不起作用。
                 ).count()
                 
                 if submitted_charts == 0:

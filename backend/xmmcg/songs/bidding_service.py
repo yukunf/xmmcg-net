@@ -587,10 +587,10 @@ class PeerReviewService:
         except BiddingRound.DoesNotExist:
             raise ValidationError('竞标轮次不存在')
         
-        # 获取该轮所有已提交的谱面
+        # 获取该轮所有已提交的谱面（包括完成稿和其他可评分状态）
         charts = Chart.objects.filter(
             bidding_round=bidding_round,
-            status__in=['submitted', 'under_review', 'reviewed']
+            status__in=['final_submitted', 'submitted', 'under_review', 'reviewed'] # TODO Submitted这个状态应当被移除，因为他可被final和part提交替代，但是他在这里和其他地方都混用了，且理应不起作用。
         ).select_related('user', 'song', 'completion_bid_result__user')
         
         if not charts.exists():
@@ -717,10 +717,10 @@ class PeerReviewService:
         # 批量创建分配记录
         PeerReviewAllocation.objects.bulk_create(allocations)
         
-        # 更新所有谱面状态为 under_review
+        # 更新所有谱面状态为 under_review（从可评分的状态转为评分中）
         Chart.objects.filter(
             bidding_round=bidding_round,
-            status__in=['submitted']
+            status__in=['final_submitted', 'submitted']
         ).update(status='under_review')
         
         return {
@@ -1101,6 +1101,7 @@ class PeerReviewService:
             is_part_one=True,
             status__in=['submitted', 'reviewed']
         )
+        # TODO Submitted这个状态应当被移除，因为他可被final和part提交替代，但是他在这里和其他地方都混用了，且理应不起作用。需要仔细refactor。
         
         # 排除已有完成的第二部分的谱面
         part_two_exists = Chart.objects.filter(
