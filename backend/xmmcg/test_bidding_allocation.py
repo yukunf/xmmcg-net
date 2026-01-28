@@ -1,14 +1,42 @@
 """
-竞标分配测试脚本
-用于生成测试数据并验证竞标分配逻辑
+竞标分配与评分任务测试脚本 (分步骤交互式执行)
+用于生成测试数据并验证竞标分配逻辑和评分任务分配逻辑
+
+执行模式：
+=== 交互式分步执行 ===
+1. 自动执行：竞标→制谱 阶段
+2. 用户选择：是否继续执行评分分配测试
+3. 用户选择：是否继续执行评分提交模拟
 
 测试场景：
+=== 竞标测试 ===
 1. 多人同价竞标同一首歌（验证随机分配）
 2. 部分用户竞标策略导致落选（验证保底随机分配）
 3. 不同价格竞标（验证价高者得）
 
+=== 谱面创建测试 ===
+4. 基于竞标结果自动创建完成稿谱面
+5. 谱面状态设置为'已提交'，可用于评分
+
+=== 评分测试（可选） ===
+6. 自动分配评分任务（每人评分若干谱面）
+7. 模拟用户提交评分（包含评分、评论、喜欢）
+8. 统计评分完成情况和平均分
+
 使用方法：
     python test_bidding_allocation.py
+
+交互提示：
+    - 竞标和制谱阶段会自动执行
+    - 完成后会询问是否继续评分分配测试
+    - 评分分配完成后会询问是否模拟评分提交
+    - 每个阶段都可以选择停止并查看当前结果
+
+注意：
+    - 脚本会清除所有以 'bidtest_' 开头的用户数据
+    - 测试用户密码统一为 'test123'
+    - 建议在开发环境中运行此脚本
+    - 可通过 Ctrl+C 随时中断脚本执行
 """
 
 import os
@@ -22,11 +50,12 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'xmmcg.settings')
 django.setup()
 
 from django.contrib.auth.models import User
-from songs.models import Song, BiddingRound, Bid, BidResult
-from songs.bidding_service import BiddingService
+from songs.models import Song, BiddingRound, Bid, BidResult, Chart, PeerReviewAllocation, PeerReview, PEER_REVIEW_MAX_SCORE
+from songs.bidding_service import BiddingService, PeerReviewService
 from users.models import UserProfile
 from datetime import datetime, timedelta
 from django.utils import timezone
+import random
 
 
 def clear_test_data():
@@ -35,6 +64,12 @@ def clear_test_data():
     
     # 清除测试用户的竞标相关数据
     test_users = User.objects.filter(username__startswith='bidtest_')
+    
+    # 清除评分相关数据
+    PeerReview.objects.filter(reviewer__in=test_users).delete()
+    PeerReviewAllocation.objects.filter(reviewer__in=test_users).delete()
+    Chart.objects.filter(user__in=test_users).delete()
+    
     BidResult.objects.filter(user__in=test_users).delete()
     Bid.objects.filter(user__in=test_users).delete()
     Song.objects.filter(user__in=test_users).delete()
@@ -233,6 +268,208 @@ def run_allocation(bidding_round):
     return True
 
 
+def create_test_charts(users, songs, bidding_round):
+    """创建测试谱面（基于竞标分配结果）"""
+    print("正在创建测试谱面...")
+    
+    # 获取竞标分配结果
+    results = BidResult.objects.filter(bidding_round=bidding_round).select_related('user', 'song')
+    
+    charts = []
+    for result in results:
+        # 为每个中标用户创建对应的谱面
+        chart = Chart.objects.create(
+            bidding_round=bidding_round,
+            user=result.user,
+            song=result.song,
+            status='submitted',  # 设为已提交状态，可以被评分
+            is_part_one=True,    # 假设都是第一部分谱面
+        )
+        charts.append(chart)
+        print(f"  ✓ {result.user.username} → {result.song.title} 的谱面")
+    
+    print(f"\n✓ 成功创建 {len(charts)} 个测试谱面\n")
+    return charts
+
+
+def run_peer_review_allocation(bidding_round):
+    """执行评分任务分配"""
+    print("=" * 60)
+    print("执行评分任务分配...")
+    print("=" * 60 + "\n")
+    
+    # 获取谱面数和评分者数
+    charts = Chart.objects.filter(bidding_round=bidding_round, status='submitted')
+    num_charts = charts.count()
+    
+    # 计算合适的每人评分任务数
+    # 考虑到用户不能评自己的谱面，我们需要调整参数
+    if num_charts <= 0:
+        print("  ✗ 没有可评分的谱面")
+        return False
+    
+    # 对于测试场景，使用每人评4个任务（这样5个人×4个任务=20次评分，5个谱面每个被评4次）
+    reviews_per_user = 4
+    
+    try:
+        stats = PeerReviewService.allocate_peer_reviews(bidding_round.id, reviews_per_user=reviews_per_user)
+        print(f"✓ 评分任务分配完成！")
+        print(f"  - 总分配任务数: {stats.get('total_allocations', 0)}")
+        print(f"  - 参与评分用户: {stats.get('reviewers_count', 0)}")
+        print(f"  - 被评分谱面: {stats.get('charts_count', 0)}")
+        print(f"  - 每人评分任务: {reviews_per_user} 个")
+        print(f"  - 每谱面被评: 约 {reviews_per_user} 次\n")
+        return True
+    except Exception as e:
+        print(f"✗ 评分任务分配失败: {str(e)}")
+        
+        # 如果4个任务仍然失败，尝试更小的数量
+        print("  尝试降低每人评分任务数...")
+        for reviews_per_user in [3, 2, 1]:
+            try:
+                print(f"  → 尝试每人评分 {reviews_per_user} 个任务...")
+                stats = PeerReviewService.allocate_peer_reviews(bidding_round.id, reviews_per_user=reviews_per_user)
+                print(f"✓ 评分任务分配成功！(每人{reviews_per_user}个任务)")
+                print(f"  - 总分配任务数: {stats.get('total_allocations', 0)}")
+                print(f"  - 参与评分用户: {stats.get('reviewers_count', 0)}")
+                print(f"  - 被评分谱面: {stats.get('charts_count', 0)}\n")
+                return True
+            except Exception as e2:
+                print(f"    ✗ 仍然失败: {str(e2)}")
+                continue
+        
+        print("  ✗ 所有评分分配尝试都失败了\n")
+        return False
+
+
+def simulate_peer_reviews(bidding_round):
+    """模拟用户提交评分"""
+    print("=" * 60)
+    print("模拟用户提交评分...")
+    print("=" * 60 + "\n")
+    
+    allocations = PeerReviewAllocation.objects.filter(
+        bidding_round=bidding_round,
+        status='pending'
+    ).select_related('reviewer', 'chart', 'chart__user', 'chart__song')
+    
+    submitted_count = 0
+    total_count = allocations.count()
+    
+    print(f"共有 {total_count} 个评分任务需要完成\n")
+    
+    # 模拟80%的用户完成评分，20%不完成（测试现实情况）
+    for allocation in allocations:
+        # 80%概率提交评分
+        if random.random() < 0.8:
+            # 生成随机评分（偏向中等偏上的分数）
+            if random.random() < 0.1:  # 10%概率给低分
+                score = random.randint(10, 25)
+            elif random.random() < 0.3:  # 30%概率给高分
+                score = random.randint(40, PEER_REVIEW_MAX_SCORE)
+            else:  # 60%概率给中等分数
+                score = random.randint(25, 40)
+            
+            # 30%概率添加评论
+            comment = None
+            if random.random() < 0.3:
+                comments = [
+                    "谱面设计很有趣！",
+                    "难度适中，很好玩",
+                    "节奏感很棒",
+                    "有些地方可以再优化一下",
+                    "整体不错",
+                    "创意很好！",
+                    "这个段落很精彩"
+                ]
+                comment = random.choice(comments)
+            
+            # 10%概率标记为喜欢
+            favorite = random.random() < 0.1
+            
+            try:
+                PeerReviewService.submit_peer_review(
+                    allocation_id=allocation.id,
+                    score=score,
+                    comment=comment,
+                    favorite=favorite
+                )
+                submitted_count += 1
+                
+                if submitted_count % 10 == 0:  # 每10个显示一次进度
+                    print(f"  已完成评分: {submitted_count}/{total_count}")
+            
+            except Exception as e:
+                print(f"  ✗ 评分提交失败 ({allocation.reviewer.username} → {allocation.chart.song.title}): {e}")
+        else:
+            print(f"  - {allocation.reviewer.username} 跳过了对 {allocation.chart.song.title} 的评分")
+    
+    completion_rate = (submitted_count / total_count * 100) if total_count > 0 else 0
+    print(f"\n✓ 评分模拟完成！")
+    print(f"  - 已提交评分: {submitted_count}/{total_count} ({completion_rate:.1f}%)")
+    print(f"  - 未完成评分: {total_count - submitted_count}\n")
+
+
+def show_peer_review_stats(bidding_round):
+    """显示评分统计信息"""
+    print("=" * 60)
+    print("评分统计信息")
+    print("=" * 60 + "\n")
+    
+    # 获取所有谱面及其评分
+    charts = Chart.objects.filter(bidding_round=bidding_round).select_related('user', 'song')
+    
+    print("【谱面评分情况】")
+    print("-" * 60)
+    for chart in charts:
+        reviews = PeerReview.objects.filter(chart=chart)
+        review_count = reviews.count()
+        
+        if review_count > 0:
+            from django.db.models import Avg, Sum
+            avg_score = reviews.aggregate(avg=Avg('score'))['avg']
+            total_score = reviews.aggregate(total=Sum('score'))['total']
+            favorite_count = reviews.filter(favorite=True).count()
+            
+            print(f"  {chart.user.username} - {chart.song.title}")
+            print(f"    评分数: {review_count} | 平均分: {avg_score:.1f}/{PEER_REVIEW_MAX_SCORE} | 喜欢: {favorite_count}")
+        else:
+            print(f"  {chart.user.username} - {chart.song.title}")
+            print(f"    评分数: 0 | 平均分: 暂无")
+    
+    print("\n【评分者完成情况】")
+    print("-" * 60)
+    test_users = User.objects.filter(username__startswith='bidtest_')
+    for user in test_users:
+        allocations = PeerReviewAllocation.objects.filter(reviewer=user, bidding_round=bidding_round)
+        total_tasks = allocations.count()
+        completed_tasks = allocations.filter(status='completed').count()
+        
+        if total_tasks > 0:
+            completion_rate = (completed_tasks / total_tasks * 100)
+            print(f"  {user.username}: {completed_tasks}/{total_tasks} ({completion_rate:.1f}%)")
+        else:
+            print(f"  {user.username}: 无评分任务")
+    
+    # 整体统计
+    total_allocations = PeerReviewAllocation.objects.filter(bidding_round=bidding_round).count()
+    completed_allocations = PeerReviewAllocation.objects.filter(
+        bidding_round=bidding_round, 
+        status='completed'
+    ).count()
+    total_reviews = PeerReview.objects.filter(chart__bidding_round=bidding_round).count()
+    
+    print("\n【整体统计】")
+    print("-" * 60)
+    print(f"  总分配任务: {total_allocations}")
+    print(f"  已完成任务: {completed_allocations}")
+    print(f"  实际评分数: {total_reviews}")
+    print(f"  任务完成率: {(completed_allocations/total_allocations*100):.1f}%" if total_allocations > 0 else "  任务完成率: 0%")
+    print(f"  参与谱面数: {charts.count()}")
+    
+    print("\n" + "=" * 60 + "\n")
+
+
 def show_results(bidding_round):
     """显示分配结果"""
     print("=" * 60)
@@ -299,10 +536,30 @@ def show_results(bidding_round):
     print("\n" + "=" * 60 + "\n")
 
 
+def ask_user_continue(prompt, default="y"):
+    """询问用户是否继续"""
+    while True:
+        try:
+            response = input(f"\n{prompt} [{'Y/n' if default == 'y' else 'y/N'}]: ").strip().lower()
+            if not response:
+                response = default
+            if response in ['y', 'yes', '是']:
+                return True
+            elif response in ['n', 'no', '否']:
+                return False
+            else:
+                print("请输入 y/yes/是 或 n/no/否")
+        except KeyboardInterrupt:
+            print("\n\n用户中断操作")
+            return False
+        except EOFError:
+            return default == 'y'
+
+
 def main():
     """主函数"""
     print("\n" + "=" * 60)
-    print("竞标分配测试脚本")
+    print("竞标分配与评分任务测试脚本 (分步骤执行)")
     print("=" * 60 + "\n")
     
     # 步骤1: 清除旧数据
@@ -320,21 +577,104 @@ def main():
     # 步骤5: 创建竞标数据
     create_test_bids(users, songs, bidding_round)
     
-    # 步骤6: 执行分配
+    # 步骤6: 执行竞标分配
     success = run_allocation(bidding_round)
     
-    # 步骤7: 显示结果
-    if success:
-        show_results(bidding_round)
-        
-        print("测试完成！")
-        print("\n提示：")
-        print("  1. 可访问 Django Admin 查看详细数据")
-        print("  2. 竞标轮次ID:", bidding_round.id)
-        print("  3. 测试用户: bidtest_1 ~ bidtest_10 (密码: test123)")
-        print("  4. 重新运行此脚本会清除并重新生成数据")
-    else:
-        print("测试失败，请检查错误信息")
+    if not success:
+        print("竞标分配失败，请检查错误信息")
+        return
+    
+    # 步骤7: 显示竞标分配结果
+    show_results(bidding_round)
+    
+    # 步骤8: 创建测试谱面
+    charts = create_test_charts(users, songs, bidding_round)
+    
+    if not charts:
+        print("未创建任何谱面，无法进行评分测试")
+        print_basic_completion_info(bidding_round)
+        return
+    
+    print("=" * 60)
+    print("阶段一完成：竞标→制谱 流程已完成")
+    print("=" * 60)
+    print(f"✓ 已创建 {len(charts)} 个完成稿谱面")
+    print(f"✓ 竞标轮次ID: {bidding_round.id}")
+    print("✓ 所有谱面状态为'已提交'，可以进行评分")
+    
+    # 询问是否继续进行评分测试
+    if not ask_user_continue("是否继续执行评分分配和提交测试？"):
+        print("\n跳过评分测试，仅完成竞标和制谱阶段。")
+        print_basic_completion_info(bidding_round)
+        return
+    
+    print("\n继续执行评分测试...\n")
+    
+    # 步骤9: 执行评分任务分配
+    peer_review_success = run_peer_review_allocation(bidding_round)
+    
+    if not peer_review_success:
+        print("评分任务分配失败，评分测试结束")
+        print_basic_completion_info(bidding_round)
+        return
+    
+    # 询问是否模拟用户评分提交
+    if not ask_user_continue("是否模拟用户提交评分？", default="y"):
+        print("\n跳过评分提交模拟。")
+        print("当前状态：评分任务已分配，等待用户提交评分。")
+        print_evaluation_info(bidding_round)
+        return
+    
+    # 步骤10: 模拟用户提交评分
+    simulate_peer_reviews(bidding_round)
+    
+    # 步骤11: 显示评分统计结果
+    show_peer_review_stats(bidding_round)
+    
+    print("完整测试流程结束！")
+    print_full_completion_info(bidding_round)
+
+
+def print_basic_completion_info(bidding_round):
+    """打印基础完成信息（仅竞标和制谱）"""
+    print("\n" + "=" * 60)
+    print("测试完成信息")
+    print("=" * 60)
+    print("完成阶段：竞标分配 + 谱面创建")
+    print(f"竞标轮次ID: {bidding_round.id}")
+    print("测试用户: bidtest_1 ~ bidtest_10 (密码: test123)")
+    print("可通过 Django Admin 查看详细数据")
+    print("重新运行脚本会清除并重新生成所有数据")
+
+
+def print_evaluation_info(bidding_round):
+    """打印评分阶段信息"""
+    print("\n" + "=" * 60)
+    print("测试完成信息")
+    print("=" * 60)
+    print("完成阶段：竞标分配 + 谱面创建 + 评分任务分配")
+    print(f"竞标轮次ID: {bidding_round.id}")
+    print("测试用户: bidtest_1 ~ bidtest_10 (密码: test123)")
+    print("评分任务已分配，可通过API或Admin手动提交评分")
+    print("重新运行脚本会清除并重新生成所有数据")
+
+
+def print_full_completion_info(bidding_round):
+    """打印完整测试完成信息"""
+    print("\n" + "=" * 60)
+    print("完整测试完成信息")
+    print("=" * 60)
+    print("完成阶段：竞标分配 + 谱面创建 + 评分分配 + 评分模拟")
+    print(f"竞标轮次ID: {bidding_round.id}")
+    print("测试用户: bidtest_1 ~ bidtest_10 (密码: test123)")
+    print("可通过 Django Admin 查看所有详细数据")
+    print("重新运行脚本会清除并重新生成所有数据")
+    print("\n测试覆盖范围：")
+    print("  ✓ 竞标分配逻辑（同价随机、价高者得、保底分配）")
+    print("  ✓ 谱面创建和状态管理")
+    print("  ✓ 评分任务自动分配算法")
+    print("  ✓ 用户评分提交模拟")
+    print("  ✓ 评分统计和完成率计算")
 
 
 if __name__ == '__main__':
