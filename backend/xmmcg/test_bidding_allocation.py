@@ -434,7 +434,7 @@ def create_part_two_charts(bidding_round, part_one_charts):
                 bidding_round=bidding_round,
                 user=result.user,  # 第二部分作者
                 song=result.chart.song,  # 同一首歌
-                status='submitted',  # 设为已提交状态，可以被评分
+                status='final_submitted',  # 设为已提交状态，可以被评分
                 is_part_one=False,  # 第二部分谱面
                 part_one_chart=result.chart,  # 关联第一部分
                 completion_bid_result=result,  # 关联竞标结果
@@ -443,9 +443,10 @@ def create_part_two_charts(bidding_round, part_one_charts):
             part_two_charts.append(part_two_chart)
             print(f"  ✓ {result.user.username} 续写 {result.chart.user.username} 的《{result.chart.song.title}》")
             
-            # 同时将第一部分谱面也设为已提交状态，可以被评分
-            result.chart.status = 'submitted'
+            # 同时将第一部分谱面也设为完稿状态，可以被评分
+            result.chart.status = 'final_submitted'
             result.chart.save()
+            
     
     print(f"\n✓ 成功创建 {len(part_two_charts)} 个第二部分谱面")
     print(f"✓ 总计谱面数: {len(part_one_charts)} + {len(part_two_charts)} = {len(part_one_charts) + len(part_two_charts)} 个\n")
@@ -459,7 +460,10 @@ def run_peer_review_allocation(bidding_round):
     print("=" * 60 + "\n")
     
     # 获取谱面数和评分者数
-    charts = Chart.objects.filter(bidding_round=bidding_round, status='submitted')
+    charts = Chart.objects.filter(
+        bidding_round=bidding_round, 
+        status__in=['final_submitted', 'submitted', 'under_review', 'reviewed']
+    )
     num_charts = charts.count()
     
     # 计算合适的每人评分任务数
