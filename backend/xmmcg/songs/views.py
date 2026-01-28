@@ -1533,7 +1533,7 @@ def get_chart_reviews(request, chart_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def submit_extra_peer_review(request):
+def submit_extra_peer_review(request): # TODO 这里comment、comments参数命名混乱，需要重构。前端使用的是comments，model定义了comment。
     """
     提交额外的互评打分（用户自主选择的谱面）
     POST /api/peer-reviews/extra/
@@ -1598,7 +1598,7 @@ def submit_extra_peer_review(request):
     existing_extra_review = PeerReview.objects.filter(
         reviewer=user,
         chart=chart,
-        comments=comments,
+        comment=comments,
         favorite=favorite,
         allocation__isnull=True  # 额外评分没有allocation
     ).first()
@@ -1606,7 +1606,7 @@ def submit_extra_peer_review(request):
     if existing_extra_review:
         # 更新已有的额外评分
         existing_extra_review.score = score
-        existing_extra_review.comments = comments
+        existing_extra_review.comment = comments
         existing_extra_review.favorite = favorite
         existing_extra_review.save()
         
@@ -1623,7 +1623,7 @@ def submit_extra_peer_review(request):
         reviewer=user,
         allocation=None,  # 额外评分没有allocation
         score=score,
-        comments=comments,
+        comment=comments,
         favorite=favorite
     )
     

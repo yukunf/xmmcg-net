@@ -55,13 +55,13 @@
           
           <div class="task-actions" style="display: flex; align-items: center;">
             <el-input
-              v-model="task.comment"
+              v-model="task.comments"
               type="textarea"
               :rows="1"
               autosize
-              placeholder="请输入评语"
+              placeholder="请输入评语" 
               style="width: 300px; margin-right: 15px;"
-            />
+            /> <!-- FIXME 评语并未被传到后端 -->
 
             <el-input-number
               v-model="task.score"
@@ -188,8 +188,8 @@ const loadData = async () => {
     reviewTasks.value = tasksRes.tasks?.map(task => ({
       allocation_id: task.id,  // 后端返回的id就是allocation_id
       chart_id: task.chart_id,
-      chart_title: task.song_title,
-      designer: task.chart_designer || '未知谱师',  // 添加谱师信息
+      chart_title: task.song_title,  // 后端API返回的是song_title字段
+      designer: task.chart_designer || '未知谱师',  // 后端API返回的是chart_designer字段
       score: null,
       comments: '',
       favorite: false,
@@ -322,11 +322,11 @@ const getTaskDisplayName = (task) => {
 
 // 生成谱面显示名称（如果标题重复则附加谱师名义）
 const getChartDisplayName = (chart) => {
-  const title = chart.song_title || '未知标题'
+  const title = chart.song?.title || '未知标题'  // 修复：歌曲标题在song对象中
   const designer = chart.designer || '未知谱师'
   
   // 检查是否有其他谱面使用相同标题
-  const sameTitleCharts = availableCharts.value.filter(c => c.song_title === chart.song_title)
+  const sameTitleCharts = availableCharts.value.filter(c => c.song?.title === chart.song?.title)
   
   // 如果有重复标题，附加谱师名义
   if (sameTitleCharts.length > 1) {
@@ -373,8 +373,8 @@ const addExtraTask = () => {
   reviewTasks.value.push({
     allocation_id: null, // 额外任务没有allocation_id
     chart_id: chart.id,
-    chart_title: chart.song_title,
-    designer: chart.designer || '未知谱师',  // 添加谱师信息
+    chart_title: chart.song?.title || '未知标题',  // 修复：歌曲标题在song对象中
+    designer: chart.designer || '未知谱师',
     score: null,
     comments: '',
     favorite: false,
