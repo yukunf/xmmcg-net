@@ -59,7 +59,6 @@ def create_test_users(count=10):
             username=username,
             defaults={
                 'email': f'{username}@test.com',
-                'first_name': f'测试用户{i}'
             }
         )
         if created:
@@ -67,7 +66,7 @@ def create_test_users(count=10):
             user.save()
         
         # 创建用户资料并设置代币
-        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile, _ = UserProfile.objects.get_or_create(user=user, defaults={'qqid' : f'{100000 + i}'})
         profile.token = 500  # 给足够的代币进行测试
         profile.save()
         
