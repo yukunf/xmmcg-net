@@ -862,7 +862,7 @@ class PeerReview(models.Model):
     
     # 评分内容
     score = models.IntegerField(
-        help_text='评分（0-50）'
+        help_text='评分'
     )
     
     comment = models.TextField(
@@ -871,6 +871,12 @@ class PeerReview(models.Model):
         help_text='评论（可选）'
     )
     
+    favorite = models.BooleanField(
+        default=False,
+        help_text='是否标记为喜欢',
+        null=False,
+        blank=False
+    )
     # 时间戳
     created_at = models.DateTimeField(
         auto_now_add=True,

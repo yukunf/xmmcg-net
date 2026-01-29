@@ -525,12 +525,13 @@ export const getMyReviewTasks = async () => {
 /**
  * 提交互评分数
  */
-export const submitReview = async (allocationId, score, comments = '') => {
+export const submitReview = async (allocationId, score, comments = '', favorite = false) => {
   try {
     await ensureCsrfToken()
     const response = await api.post(`/songs/peer-reviews/allocations/${allocationId}/submit/`, {
       score: score,
-      comment: comments
+      comment: comments,
+      favorite: favorite
     })
     return response
   } catch (error) {
@@ -542,13 +543,14 @@ export const submitReview = async (allocationId, score, comments = '') => {
 /**
  * 提交额外的互评分数（用户自主选择的谱面）
  */
-export const submitExtraReview = async (chartId, score, comments = '') => {
+export const submitExtraReview = async (chartId, score, comments = '', favorite = false) => {
   try {
     await ensureCsrfToken()
     const response = await api.post('/songs/peer-reviews/extra/', {
       chart_id: chartId,
       score: score,
-      comments: comments
+      comments: comments,
+      favorite: favorite
     })
     return response
   } catch (error) {

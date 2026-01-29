@@ -43,38 +43,66 @@
         <el-empty v-if="reviewTasks.length === 0" description="暂无评分任务" />
         
         <div v-else class="tasks-list">
-          <div 
-            v-for="(task, index) in reviewTasks" 
-            :key="task.allocation_id || `extra-${task.chart_id}`"
-            class="task-item"
-          >
-            <div class="task-info">
-              <span class="task-title">{{ getTaskDisplayName(task) }}</span>
-              <el-tag v-if="task.isExtra" type="warning" size="small" style="margin-left: 10px;">额外</el-tag>
-            </div>
-            
-            <div class="task-actions">
-              <el-input-number
-                v-model="task.score"
-                :min="0"
-                :max="maxScore"
-                :precision="0"
-                :step="1"
-                placeholder="请输入分数"
-                style="width: 150px;"
-              />
-              <el-button 
-                v-if="task.isExtra" 
-                type="danger" 
-                size="small" 
-                @click="removeExtraTask(index)"
-                style="margin-left: 10px;"
+        <div 
+          v-for="(task, index) in reviewTasks" 
+          :key="task.allocation_id || `extra-${task.chart_id}`"
+          class="task-item"
+        >
+          <div class="task-info">
+            <span class="task-title">{{ getTaskDisplayName(task) }}</span>
+            <el-tag v-if="task.isExtra" type="warning" size="small" style="margin-left: 10px;">额外</el-tag>
+          </div>
+          
+          <div class="task-actions" style="display: flex; align-items: center;">
+            <el-input
+              v-model="task.comments"
+              type="textarea"
+              :rows="1"
+              autosize
+              placeholder="请输入评语" 
+              style="width: 300px; margin-right: 15px;"
+            /> <!-- FIXME 评语并未被传到后端 -->
+
+            <el-input-number
+              v-model="task.score"
+              :min="0"
+              :max="maxScore"
+              :precision="0"
+              :step="1"
+              placeholder="请输入分数"
+              style="width: 150px;"
+            />
+
+              <el-tooltip 
+                :content="task.favorite ? '取消真爱票' : '设为真爱票'" 
+                placement="top"
               >
-                删除
-              </el-button>
-            </div>
+                <el-button
+                  type="text"
+                  @click="task.favorite = !task.favorite"
+                  style="margin-left: 10px; padding: 0;"
+                >
+                  <el-icon 
+                    :size="24"
+                    :color="task.favorite ? 'var(--el-color-danger)' : 'var(--el-text-color-placeholder)'"
+                    style="transition: color 0.3s;"
+                  >
+                    <component :is="task.favorite ? 'StarFilled' : 'Star'" />
+                  </el-icon>
+                </el-button>
+              </el-tooltip>
+            <el-button 
+              v-if="task.isExtra" 
+              type="danger" 
+              size="small" 
+              @click="removeExtraTask(index)"
+              style="margin-left: 10px;"
+            >
+              删除
+            </el-button>
           </div>
         </div>
+      </div>
 
         <div v-if="reviewTasks.length > 0" class="submit-section">
           <el-button 
@@ -117,11 +145,16 @@
   </div>
 </template>
 
+
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getMyCharts, getCharts } from '../api'
+import { fa } from 'element-plus/es/locale/index.mjs'
+import { Star, StarFilled } from '@element-plus/icons-vue'
+
+
 
 const loading = ref(true)
 const submitting = ref(false)
@@ -155,10 +188,11 @@ const loadData = async () => {
     reviewTasks.value = tasksRes.tasks?.map(task => ({
       allocation_id: task.id,  // 后端返回的id就是allocation_id
       chart_id: task.chart_id,
-      chart_title: task.song_title,
-      designer: task.chart_designer || '未知谱师',  // 添加谱师信息
+      chart_title: task.song_title,  // 后端API返回的是song_title字段
+      designer: task.chart_designer || '未知谱师',  // 后端API返回的是chart_designer字段
       score: null,
       comments: '',
+      favorite: false,
       isExtra: false  // 系统分配的任务不是额外任务
     })) || []
     
@@ -240,12 +274,12 @@ const submitReviews = async () => {
     // 提交系统分配的任务
     const systemPromises = systemTasks
       .filter(task => task.score !== null && task.score !== '')
-      .map(task => submitReview(task.allocation_id, task.score, task.comments))
+      .map(task => submitReview(task.allocation_id, task.score, task.comments, task.favorite))
 
     // 提交额外评分
     const extraPromises = extraTasks
       .filter(task => task.score !== null && task.score !== '')
-      .map(task => submitExtraReview(task.chart_id, task.score, task.comments))
+      .map(task => submitExtraReview(task.chart_id, task.score, task.comments, task.favorite))
 
     // 并发提交所有评分
     await Promise.all([...systemPromises, ...extraPromises])
@@ -288,11 +322,11 @@ const getTaskDisplayName = (task) => {
 
 // 生成谱面显示名称（如果标题重复则附加谱师名义）
 const getChartDisplayName = (chart) => {
-  const title = chart.song_title || '未知标题'
+  const title = chart.song?.title || '未知标题'  // 修复：歌曲标题在song对象中
   const designer = chart.designer || '未知谱师'
   
   // 检查是否有其他谱面使用相同标题
-  const sameTitleCharts = availableCharts.value.filter(c => c.song_title === chart.song_title)
+  const sameTitleCharts = availableCharts.value.filter(c => c.song?.title === chart.song?.title)
   
   // 如果有重复标题，附加谱师名义
   if (sameTitleCharts.length > 1) {
@@ -339,10 +373,11 @@ const addExtraTask = () => {
   reviewTasks.value.push({
     allocation_id: null, // 额外任务没有allocation_id
     chart_id: chart.id,
-    chart_title: chart.song_title,
-    designer: chart.designer || '未知谱师',  // 添加谱师信息
+    chart_title: chart.song?.title || '未知标题',  // 修复：歌曲标题在song对象中
+    designer: chart.designer || '未知谱师',
     score: null,
     comments: '',
+    favorite: false,
     isExtra: true
   })
   
@@ -407,14 +442,16 @@ const removeExtraTask = (index) => {
   justify-content: space-between;
   align-items: center;
   padding: 15px;
-  background-color: #f5f7fa;
+  background-color: var(--el-bg-color-page);
+  border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   transition: all 0.3s;
 }
 
 .task-item:hover {
-  background-color: #e8eaf0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  box-shadow: 0 2px 8px var(--el-box-shadow-light);
 }
 
 .task-info {
@@ -427,12 +464,12 @@ const removeExtraTask = (index) => {
 .task-title {
   font-size: 16px;
   font-weight: 500;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .task-designer {
   font-size: 14px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 .task-actions {
@@ -445,6 +482,6 @@ const removeExtraTask = (index) => {
   margin-top: 30px;
   text-align: center;
   padding-top: 20px;
-  border-top: 1px solid #dcdfe6;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>
