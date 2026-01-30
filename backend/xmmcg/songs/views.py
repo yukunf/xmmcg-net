@@ -1176,14 +1176,35 @@ def submit_chart(request, result_id):
     - chart_file (maidata.txt)
     
     用户通过竞标获得了歌曲后，可以提交谱面
+    
+    阶段控制：
+    - 管理员：无限制
+    - 普通用户：必须在 mapping1 或 mapping2 阶段（is_active=True）
     """
     from .models import BidResult, Chart
     from .serializers import ChartCreateSerializer, ChartSerializer
     
     user = request.user
+    is_admin = user.is_staff
     
     # 验证BidResult存在且属于当前用户
     bid_result = get_object_or_404(BidResult, id=result_id, user=user)
+    
+    # 阶段验证（管理员可绕过）
+    if not is_admin:
+        now = timezone.now()
+        active_mapping_phase = CompetitionPhase.objects.filter(
+            phase_key__in=['mapping1', 'mapping2', 'chart_mapping'],
+            is_active=True,
+            start_time__lte=now,
+            end_time__gte=now
+        ).first()
+        
+        if not active_mapping_phase:
+            return Response({
+                'success': False,
+                'message': '当前不在谱面创作阶段，无法提交谱面'
+            }, status=status.HTTP_400_BAD_REQUEST)
     
     # 计算目标歌曲（第一阶段：bid_result.song；第二阶段：bid_result.chart.song）
     song_target = bid_result.song if bid_result.bid_type == 'song' else (bid_result.chart.song if bid_result.chart else None)
