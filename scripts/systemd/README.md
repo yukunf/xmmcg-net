@@ -7,7 +7,7 @@
 ## 文件说明
 
 - `xmmcg-phase-update.service` - systemd 服务单元文件
-- `xmmcg-phase-update.timer` - systemd 定时器配置（每小时执行一次）
+- `xmmcg-phase-update.timer` - systemd 定时器配置（每10分钟第三秒执行一次）
 - `README.md` - 说明文档
 
 ## 路径配置
@@ -21,14 +21,21 @@
 
 ## 安装步骤
 
-### 1. 复制配置文件
+### 1. 设置脚本执行权限
+
+```bash
+# 必须先设置执行权限
+sudo chmod +x /opt/xmmcg/scripts/update_phase_linux.sh
+```
+
+### 2. 复制配置文件
 
 ```bash
 sudo cp /opt/xmmcg/scripts/systemd/xmmcg-phase-update.service /etc/systemd/system/
 sudo cp /opt/xmmcg/scripts/systemd/xmmcg-phase-update.timer /etc/systemd/system/
 ```
 
-### 2. 创建日志目录
+### 3. 创建日志目录
 
 ```bash
 sudo mkdir -p /var/log/xmmcg
@@ -36,13 +43,13 @@ sudo chown www-data:www-data /var/log/xmmcg
 sudo chmod 755 /var/log/xmmcg
 ```
 
-### 3. 重新加载 systemd
+### 4. 重新加载 systemd
 
 ```bash
 sudo systemctl daemon-reload
 ```
 
-### 4. 启用并启动定时器
+### 5. 启用并启动定时器
 
 ```bash
 sudo systemctl enable xmmcg-phase-update.timer
@@ -136,13 +143,24 @@ sudo nano /etc/logrotate.d/xmmcg
 
 ### 常见问题
 
-1. **权限问题**
+1. **脚本无执行权限（Permission denied）**
+   ```bash
+   # 错误：Permission denied at step EXEC
+   # 解决：设置执行权限
+   sudo chmod +x /opt/xmmcg/scripts/update_phase_linux.sh
+   
+   # 验证权限
+   ls -la /opt/xmmcg/scripts/update_phase_linux.sh
+   # 应该显示类似：-rwxr-xr-x
+   ```
+4
+2. **文件所有权问题**
    ```bash
    sudo chown -R www-data:www-data /opt/xmmcg
    sudo chown -R www-data:www-data /var/log/xmmcg
    ```
 
-2. **虚拟环境路径错误**
+3. **虚拟环境路径错误**
    - 检查 `/opt/xmmcg/.venv/bin/python` 是否存在
    - 确保虚拟环境已正确安装 Django 和依赖
 
