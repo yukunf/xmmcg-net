@@ -51,7 +51,7 @@ def get_active_phase_for_bidding(bid_type='song', phase_id=None, is_admin=False)
         - 管理员：不检查 is_active，只要阶段存在即可
         - 普通用户：严格检查 is_active=True
     """
-    phase_key_filter = 'bidding' if bid_type == 'song' else 'second_bidding'
+    phase_key_filter = 'music_bid' if bid_type == 'song' else 'chart_bid'
     
     if phase_id:
         # 指定了阶段ID
@@ -688,9 +688,13 @@ def target_bids_list(request):
         except BiddingRound.DoesNotExist:
             # 尝试通过 Phase ID 获取
             try:
-                phase = CompetitionPhase.objects.get(id=round_id)
-                # 能够查询歌曲，说明是 song 类型；反之亦然
                 b_type = 'song' if song_id else 'chart'
+                phase_key_filter = 'music_bid' if b_type == 'song' else 'chart_bid'
+                
+                phase = CompetitionPhase.objects.get(
+                    id=round_id,
+                    phase_key__icontains=phase_key_filter
+                )
                 round_obj = phase.bidding_rounds.filter(bidding_type=b_type).first()
             except CompetitionPhase.DoesNotExist:
                 return Response({'success': False, 'message': '轮次不存在'}, status=status.HTTP_404_NOT_FOUND)
@@ -698,7 +702,7 @@ def target_bids_list(request):
         # 未指定轮次，查找当前活跃轮次
         now = timezone.now()
         b_type = 'song' if song_id else 'chart'
-        phase_key_filter = 'bidding' if b_type == 'song' else 'second_bidding'
+        phase_key_filter = 'music_bid' if b_type == 'song' else 'chart_bid'
         
         active_phase = CompetitionPhase.objects.filter(
             phase_key__icontains=phase_key_filter,
