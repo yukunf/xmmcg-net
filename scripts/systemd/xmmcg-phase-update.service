@@ -6,13 +6,13 @@ After=network.target
 Type=oneshot
 User=www-data
 Group=www-data
-WorkingDirectory=/var/www/xmmcg-net/backend/xmmcg
-Environment="PATH=/var/www/xmmcg-net/.venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/var/www/xmmcg-net/scripts/update_phase_linux.sh
+WorkingDirectory=/opt/xmmcg/backend/xmmcg
+Environment="PATH=/opt/xmmcg/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/xmmcg/scripts/update_phase_linux.sh
 
 # 日志配置
-StandardOutput=append:/var/www/xmmcg-net/logs/phase_update_systemd.log
-StandardError=append:/var/www/xmmcg-net/logs/phase_update_systemd_error.log
+StandardOutput=append:/var/log/xmmcg/phase_update_systemd.log
+StandardError=append:/var/log/xmmcg/phase_update_systemd_error.log
 
 # 安全设置
 PrivateTmp=true

@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 项目路径（根据实际情况修改）
-PROJECT_ROOT="/var/www/xmmcg-net"
+PROJECT_ROOT="/opt/xmmcg"
 
 echo -e "${BLUE}=== XMMCG Phase Update Deployment ===${NC}"
 echo ""

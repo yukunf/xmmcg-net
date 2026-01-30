@@ -7,10 +7,10 @@
 set -e  # 遇到错误立即退出
 
 # 项目路径配置（根据实际部署路径修改）
-PROJECT_ROOT="/var/www/xmmcg-net"
+PROJECT_ROOT="/opt/xmmcg"
 BACKEND_DIR="${PROJECT_ROOT}/backend/xmmcg"
 VENV_PATH="${PROJECT_ROOT}/.venv"
-LOG_DIR="${PROJECT_ROOT}/logs"
+LOG_DIR="/var/log/xmmcg"
 LOG_FILE="${LOG_DIR}/phase_update.log"
 
 # 创建日志目录（如果不存在）

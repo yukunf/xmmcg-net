@@ -14,10 +14,10 @@
 # ================================================================
 
 # 每小时整点执行一次
-0 * * * * /var/www/xmmcg-net/scripts/update_phase_linux.sh
+0 * * * * /opt/xmmcg/scripts/update_phase_linux.sh
 
 # 或者：每 30 分钟执行一次（更及时）
-# 0,30 * * * * /var/www/xmmcg-net/scripts/update_phase_linux.sh
+# 0,30 * * * * /opt/xmmcg/scripts/update_phase_linux.sh
 
 
 # ================================================================
@@ -27,7 +27,7 @@
 # 每 10 分钟检查一次是否需要执行
 # 平时：只在整点执行（每小时 1 次）
 # 阶段切换前 2 小时：每 10 分钟执行 1 次
-*/10 * * * * /var/www/xmmcg-net/scripts/smart_update_phase.sh
+*/10 * * * * /opt/xmmcg/scripts/smart_update_phase.sh
 
 
 # ================================================================
@@ -35,13 +35,13 @@
 # ================================================================
 
 # 平时：每小时整点执行
-# 0 * * * * /var/www/xmmcg-net/scripts/update_phase_linux.sh
+# 0 * * * * /opt/xmmcg/scripts/update_phase_linux.sh
 
 # 关键时段加密执行（例如：每天 8:00-22:00，每 30 分钟）
-# 0,30 8-22 * * * /var/www/xmmcg-net/scripts/update_phase_linux.sh
+# 0,30 8-22 * * * /opt/xmmcg/scripts/update_phase_linux.sh
 
 # 深夜低频（每 2 小时）
-# 0 0,2,4,6 * * * /var/www/xmmcg-net/scripts/update_phase_linux.sh
+# 0 0,2,4,6 * * * /opt/xmmcg/scripts/update_phase_linux.sh
 
 
 # ================================================================
@@ -49,7 +49,7 @@
 # ================================================================
 
 # 每周日凌晨 3 点清理旧日志（保留最近 100 行）
-# 0 3 * * 0 tail -n 100 /var/www/xmmcg-net/logs/phase_update.log > /var/www/xmmcg-net/logs/phase_update.log.tmp && mv /var/www/xmmcg-net/logs/phase_update.log.tmp /var/www/xmmcg-net/logs/phase_update.log
+# 0 3 * * 0 tail -n 100 /var/log/xmmcg/phase_update.log > /tmp/phase_update.log.tmp && mv /tmp/phase_update.log.tmp /var/log/xmmcg/phase_update.log
 
 
 # ================================================================
@@ -66,4 +66,4 @@
 # ================================================================
 
 # 每天发送执行报告（需要配置邮件服务）
-# 0 9 * * * grep "$(date +\%Y-\%m-\%d)" /var/www/xmmcg-net/logs/phase_update.log | mail -s "XMMCG Phase Update Report" admin@example.com
+# 0 9 * * * grep "$(date +\%Y-\%m-\%d)" /var/log/xmmcg/phase_update.log | mail -s "XMMCG Phase Update Report" admin@example.com

@@ -7,10 +7,10 @@
 set -e
 
 # 项目路径配置
-PROJECT_ROOT="/var/www/xmmcg-net"
+PROJECT_ROOT="/opt/xmmcg"
 BACKEND_DIR="${PROJECT_ROOT}/backend/xmmcg"
 VENV_PATH="${PROJECT_ROOT}/.venv"
-LOG_FILE="${PROJECT_ROOT}/logs/smart_update.log"
+LOG_FILE="/var/log/xmmcg/smart_update.log"
 
 # 激活虚拟环境
 source "${VENV_PATH}/bin/activate"
