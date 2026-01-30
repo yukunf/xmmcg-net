@@ -833,305 +833,62 @@ class PeerReviewService:
 # 注意：以下代码已被注释，现在使用统一的BiddingService来处理歌曲和谱面竞标
 # 请创建 BiddingRound 并设置 bidding_type='chart' 来进行谱面竞标
 
-# class SecondBiddingService:
-#     """第二轮竞标服务类 - 处理谱面竞标逻辑"""
-#     
-#     @staticmethod
-#     @transaction.atomic
-#     def allocate_second_bids(second_bidding_round_id):
-#         """
-#         执行第二轮竞标分配逻辑（用户竞标其他人的一半谱面）
-#         
-#         算法：
-#         1. 获取该第二轮竞标的所有有效竞标（未drop）
-#         2. 按出价从高到低排序
-#         3. 逐个处理竞标：
-#            - 如果该一半谱面还未被分配，将该竞标标记为中标
-#            - 该一半谱面的其他竞标标记为drop
-#         4. 对于未获得任何谱面的用户，从未被分配的谱面中随机分配
-#         5. 为每个中标者创建Chart对象（第二部分）
-#         6. 标记该轮次为已完成
-#         
-#         Args:
-#             second_bidding_round_id: 第二轮竞标轮次ID
-#             
-#         Returns:
-#             dict: 包含分配结果统计信息
-#             
-#         Raises:
-#             ValidationError: 如果轮次不存在或状态不适合分配
-#         """
-#         pass
-#     
-#     @staticmethod
-#     def validate_second_bid(user, target_chart_part_one, amount):
-#         """验证第二轮竞标是否有效"""
-#         pass
-#     
-#     @staticmethod
-#     def get_available_part_one_charts(second_bidding_round, user=None):
-#         """获取可参与第二轮竞标的第一部分谱面列表"""
-#         pass
-#     
-#     @staticmethod
-#     def get_second_bid_results(user, second_bidding_round):
-#         """获取用户在某个第二轮竞标中的分配结果"""
-#         pass
-    """第二轮竞标服务类 已废弃"""
-    
     # @staticmethod
-    # @transaction.atomic
-    # def allocate_second_bids(second_bidding_round_id):
+    # def get_available_part_one_charts(second_bidding_round, user=None):
     #     """
-    #     执行第二轮竞标分配逻辑
+    #     获取可参与第二轮竞标的第一部分谱面列表
         
-    #     第二轮竞标针对第一轮中已经完成第一半谱面的歌曲
-    #     选手用剩余的token竞标以获得他人的一半谱面，然后完成后半部分
-        
-    #     算法：
-    #     1. 获取该轮次的所有有效竞标（未drop）
-    #     2. 按出价从高到低排序
-    #     3. 逐个处理竞标：
-    #        - 如果该一半谱面还未被分配，将该竞标标记为中标
-    #        - 该一半谱面的其他竞标标记为drop
-    #     4. 对于未获得任何谱面的用户，从未被分配的谱面中随机分配
-    #     5. 为每个中标者创建Chart对象（第二部分）
-    #     6. 标记该轮次为已完成
+    #     可竞标的谱面需要满足：
+    #     1. 是第一部分谱面
+    #     2. 没有完成的第二部分
+    #     3. 不是竞标用户自己创建的
         
     #     Args:
-    #         second_bidding_round_id: 第二轮竞标轮次ID
+    #         second_bidding_round: 第二轮竞标轮次
+    #         user: 竞标用户（用于过滤自己的谱面）
             
     #     Returns:
-    #         dict: 包含分配结果统计信息
-            
-    #     Raises:
-    #         ValidationError: 如果轮次不存在或状态不适合分配
+    #         QuerySet: 可竞标的第一部分谱面
     #     """
-    #     from .models import SecondBiddingRound, SecondBid, SecondBidResult, Chart
+    #     from .models import Chart
+    #     from django.db.models import Q, OuterRef, Exists
         
-    #     # 获取第二轮竞标轮次
-    #     try:
-    #         second_bidding_round = SecondBiddingRound.objects.get(id=second_bidding_round_id)
-    #     except SecondBiddingRound.DoesNotExist:
-    #         raise ValidationError('第二轮竞标轮次不存在')
+    #     # 获取所有已完成的第一部分谱面
+    #     available_charts = Chart.objects.filter(
+    #         is_part_one=True,
+    #         status__in=['submitted', 'reviewed']
+    #     )
+    #     # TODO Submitted这个状态应当被移除，因为他可被final和part提交替代，但是他在这里和其他地方都混用了，且理应不起作用。需要仔细refactor。
         
-    #     if second_bidding_round.status != 'active':
-    #         raise ValidationError('只能对"进行中"的竞标轮次进行分配')
-        
-    #     # 清空之前的分配结果
-    #     SecondBidResult.objects.filter(second_bidding_round=second_bidding_round).delete()
-        
-    #     # 获取所有有效的第二轮竞标
-    #     all_bids = SecondBid.objects.filter(
-    #         second_bidding_round=second_bidding_round,
-    #         is_dropped=False
-    #     ).select_related('bidder', 'target_chart_part_one').order_by('-amount', 'created_at')
-        
-    #     # 追踪已分配的一半谱面和用户
-    #     allocated_charts = set()  # 已分配的一半谱面ID集合
-    #     allocated_users = {}       # 用户ID -> [一半谱面列表]
-        
-    #     # 第一阶段：按出价从高到低进行分配
-    #     for bid in all_bids:
-    #         chart_id = bid.target_chart_part_one.id
-    #         if chart_id not in allocated_charts:
-    #             # 该一半谱面尚未被分配，分配给该竞标者
-    #             bid_result = SecondBidResult.objects.create(
-    #                 second_bidding_round=second_bidding_round,
-    #                 winner=bid.bidder,
-    #                 part_one_chart=bid.target_chart_part_one,
-    #                 bid_amount=bid.amount,
-    #                 allocation_type='win'
-    #             )
-                
-    #             # 创建第二部分谱面
-    #             part_two_chart = Chart.objects.create(
-    #                 bidding_round=second_bidding_round.first_bidding_round,
-    #                 user=bid.bidder,
-    #                 song=bid.target_chart_part_one.song,
-    #                 is_part_one=False,
-    #                 part_one_chart=bid.target_chart_part_one,
-    #                 status='created'
-    #             )
-    #             bid_result.completed_chart = part_two_chart
-    #             bid_result.save()
-                
-    #             allocated_charts.add(chart_id)
-                
-    #             if bid.bidder.id not in allocated_users:
-    #                 allocated_users[bid.bidder.id] = []
-    #             allocated_users[bid.bidder.id].append(chart_id)
-    #         else:
-    #             # 该谱面已被更高出价者获得，标记此竞标为drop
-    #             bid.is_dropped = True
-    #             bid.save()
-        
-    #     # 获取所有第一部分谱面（可参与竞标的对象）
-    #     all_part_one_charts = Chart.objects.filter(is_part_one=True)
-    #     all_chart_ids = set(chart.id for chart in all_part_one_charts)
-        
-    #     # 获取未被分配的一半谱面
-    #     unallocated_charts = list(all_chart_ids - allocated_charts)
-        
-    #     # 第二阶段：对于未获得任何谱面的用户，随机分配
-    #     bidding_users = set(bid.bidder.id for bid in all_bids)
-        
-    #     for user_id in bidding_users:
-    #         if user_id not in allocated_users:
-    #             # 用户未获得任何谱面，随机分配一个
-    #             if unallocated_charts:
-    #                 random_chart_id = random.choice(unallocated_charts)
-    #                 random_chart = Chart.objects.get(id=random_chart_id)
-                    
-    #                 user = User.objects.get(id=user_id)
-    #                 bid_result = SecondBidResult.objects.create(
-    #                     second_bidding_round=second_bidding_round,
-    #                     winner=user,
-    #                     part_one_chart=random_chart,
-    #                     bid_amount=0,
-    #                     allocation_type='random'
-    #                 )
-                    
-    #                 # 创建第二部分谱面
-    #                 part_two_chart = Chart.objects.create(
-    #                     bidding_round=second_bidding_round.first_bidding_round,
-    #                     user=user,
-    #                     song=random_chart.song,
-    #                     is_part_one=False,
-    #                     part_one_chart=random_chart,
-    #                     status='created'
-    #                 )
-    #                 bid_result.completed_chart = part_two_chart
-    #                 bid_result.save()
-                    
-    #                 unallocated_charts.remove(random_chart_id)
-        
-    #     # 标记轮次为已完成
-    #     second_bidding_round.status = 'completed'
-    #     second_bidding_round.completed_at = timezone.now()
-    #     second_bidding_round.save()
-        
-    #     return {
-    #         'total_bids': all_bids.count(),
-    #         'allocated_charts': len(allocated_charts),
-    #         'winners_count': len(allocated_users),
-    #         'unallocated_charts': len(unallocated_charts)
-    #     }
-    
-    # @staticmethod
-    # def validate_second_bid(user, target_chart_part_one, amount):
-    #     """
-    #     验证第二轮竞标是否有效
-        
-    #     验证项：
-    #     1. 用户是否有足够的剩余token
-    #     2. 目标谱面是否是第一部分
-    #     3. 目标谱面是否已经完成了第二部分
-    #     4. 用户是否是目标谱面的创建者
-        
-    #     Args:
-    #         user: 竞标用户
-    #         target_chart_part_one: 目标的第一部分谱面
-    #         amount: 竞标金额
-            
-    #     Returns:
-    #         tuple: (is_valid, error_message)
-    #     """
-    #     from .models import BidResult, Chart
-        
-    #     # 验证目标谱面是否为第一部分
-    #     if not target_chart_part_one.is_part_one:
-    #         return False, '目标谱面必须是第一部分'
-        
-    #     # 验证目标谱面是否已经有第二部分完成
-    #     second_part_exists = Chart.objects.filter(
-    #         part_one_chart=target_chart_part_one,
+    #     # 排除已有完成的第二部分的谱面
+    #     part_two_exists = Chart.objects.filter(
+    #         part_one_chart=OuterRef('pk'),
     #         is_part_one=False,
     #         status__in=['submitted', 'reviewed']
-    #     ).exists()
+    #     )
+    #     available_charts = available_charts.exclude(Exists(part_two_exists))
         
-    #     if second_part_exists:
-    #         return False, '该谱面的第二部分已完成，无法再次竞标'
+    #     # 排除用户自己创建的谱面
+    #     if user:
+    #         available_charts = available_charts.exclude(user=user)
         
-    #     # 验证用户是否是目标谱面的创建者
-    #     if target_chart_part_one.user == user:
-    #         return False, '不能对自己的谱面进行竞标'
-        
-    #     # 验证用户的剩余token是否足够
-    #     # 计算用户在第一轮中消耗的token
-    #     first_round_spent = BidResult.objects.filter(
-    #         bidding_round__id=target_chart_part_one.created_at.year  # 使用年份作为示例，实际应该从上下文获取
-    #     ).aggregate(
-    #         total_spent=Sum('bid_amount')
-    #     )['total_spent'] or 0
-        
-    #     # 这里简化处理，实际应该追踪用户的token使用情况
-    #     try:
-    #         user_profile = user.userprofile
-    #     except:
-    #         user_profile = UserProfile.objects.get(user=user)
-        
-    #     if amount > user_profile.token:
-    #         return False, '剩余token不足'
-        
-    #     return True, ''
+    #     return available_charts.select_related('user', 'song').order_by('-average_score', '-created_at')
     
-    @staticmethod
-    def get_available_part_one_charts(second_bidding_round, user=None):
-        """
-        获取可参与第二轮竞标的第一部分谱面列表
+    # @staticmethod
+    # def get_second_bid_results(user, second_bidding_round):
+    #     """
+    #     获取用户在某个第二轮竞标中的分配结果
         
-        可竞标的谱面需要满足：
-        1. 是第一部分谱面
-        2. 没有完成的第二部分
-        3. 不是竞标用户自己创建的
-        
-        Args:
-            second_bidding_round: 第二轮竞标轮次
-            user: 竞标用户（用于过滤自己的谱面）
+    #     Args:
+    #         user: 用户对象
+    #         second_bidding_round: 第二轮竞标轮次
             
-        Returns:
-            QuerySet: 可竞标的第一部分谱面
-        """
-        from .models import Chart
-        from django.db.models import Q, OuterRef, Exists
+    #     Returns:
+    #         QuerySet: 用户的第二轮竞标结果
+    #     """
+    #     from .models import SecondBidResult
         
-        # 获取所有已完成的第一部分谱面
-        available_charts = Chart.objects.filter(
-            is_part_one=True,
-            status__in=['submitted', 'reviewed']
-        )
-        # TODO Submitted这个状态应当被移除，因为他可被final和part提交替代，但是他在这里和其他地方都混用了，且理应不起作用。需要仔细refactor。
-        
-        # 排除已有完成的第二部分的谱面
-        part_two_exists = Chart.objects.filter(
-            part_one_chart=OuterRef('pk'),
-            is_part_one=False,
-            status__in=['submitted', 'reviewed']
-        )
-        available_charts = available_charts.exclude(Exists(part_two_exists))
-        
-        # 排除用户自己创建的谱面
-        if user:
-            available_charts = available_charts.exclude(user=user)
-        
-        return available_charts.select_related('user', 'song').order_by('-average_score', '-created_at')
-    
-    @staticmethod
-    def get_second_bid_results(user, second_bidding_round):
-        """
-        获取用户在某个第二轮竞标中的分配结果
-        
-        Args:
-            user: 用户对象
-            second_bidding_round: 第二轮竞标轮次
-            
-        Returns:
-            QuerySet: 用户的第二轮竞标结果
-        """
-        from .models import SecondBidResult
-        
-        return SecondBidResult.objects.filter(
-            second_bidding_round=second_bidding_round,
-            winner=user
-        ).select_related('part_one_chart', 'part_one_chart__user', 'part_one_chart__song', 'completed_chart')
+    #     return SecondBidResult.objects.filter(
+    #         second_bidding_round=second_bidding_round,
+    #         winner=user
+    #     ).select_related('part_one_chart', 'part_one_chart__user', 'part_one_chart__song', 'completed_chart')
