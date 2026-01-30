@@ -7,6 +7,10 @@ import App from './App.vue'
 import router from './router'
 import './styles/main.css'
 
+// Vidstack 播放器样式（全局导入）
+import 'vidstack/player/styles/default/theme.css'
+import 'vidstack/player/styles/default/layouts/audio.css'
+
 const app = createApp(App)
 
 // 启用 Element Plus 暗色主题
