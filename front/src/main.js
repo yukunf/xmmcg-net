@@ -7,11 +7,17 @@ import App from './App.vue'
 import router from './router'
 import './styles/main.css'
 
-// Vidstack 播放器样式（全局导入）
+// Vidstack 播放器样式和脚本（全局导入）
 import 'vidstack/player/styles/default/theme.css'
 import 'vidstack/player/styles/default/layouts/audio.css'
+import 'vidstack/player'
+import 'vidstack/player/layouts/default'
+import 'vidstack/player/ui'
 
 const app = createApp(App)
+
+// 配置 Vidstack 自定义元素（必须在 mount 之前）
+app.config.compilerOptions.isCustomElement = (tag) => tag.startsWith('media-')
 
 // 启用 Element Plus 暗色主题
 document.documentElement.classList.add('dark')
@@ -34,6 +40,3 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 app.use(ElementPlus)
 app.use(router)
 app.mount('#app')
-
-//使用Vidstack播放器
-app.config.compilerOptions.isCustomElement = (tag) => tag.startsWith('media-');
