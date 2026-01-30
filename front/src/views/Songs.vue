@@ -129,6 +129,7 @@
               </el-table-column>
               <el-table-column prop="status" label="状态" width="120">
                 <template #default="{ row }">
+                  <el-tag v-if="row.isHighest" >最高出价</el-tag>
                   <el-tag :type="getBidStatusType(row.status)" :effect="row.status === 'won' ? 'dark' : 'plain'">
                     {{ getBidStatusText(row.status) }}
                   </el-tag>
@@ -849,9 +850,32 @@ const loadMyBids = async () => {
     // 获取该轮次的竞标
     const response = await getMyBids(targetSongRound.id)
     if (response.success) {
-      currentBidRound.value = response.round || activeSongRound
+      currentBidRound.value = response.round || targetSongRound
       myBids.value = response.bids || []
       maxBids.value = response.max_bids || 5
+
+      // 为每个竞标检查是否是最高价
+      for (const bid of myBids.value) {
+        try {
+          const params = { song_id: bid.song.id }
+          if (currentBidRound.value && currentBidRound.value.id) {
+            params.round_id = currentBidRound.value.id
+          }
+          
+          const res = await getTargetBids(params)
+          if (res.success && res.results && res.results.length > 0) {
+            // 找出最高价
+            const maxAmount = Math.max(...res.results.map(b => b.amount))
+            // 判断当前竞标是否是最高价
+            bid.isHighest = bid.amount === maxAmount
+          } else {
+            bid.isHighest = true // 如果只有自己的竞标，那就是最高价
+          }
+        } catch (error) {
+          console.error(`检查竞标 ${bid.id} 是否最高价失败:`, error)
+          bid.isHighest = false
+        }
+      }
 
       // 调试日志：显示每个竞标的状态
       //console.log('加载歌曲竞标成功，总数:', myBids.value.length)
