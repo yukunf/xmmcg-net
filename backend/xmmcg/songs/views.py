@@ -620,12 +620,46 @@ def user_bids_root(request):
         bid_type = 'song' if song else 'chart'
         is_admin = request.user.is_staff
         
-        # 使用辅助函数获取阶段
-        phase = get_active_phase_for_bidding(
-            bid_type=bid_type,
-            phase_id=round_id,
-            is_admin=is_admin
-        )
+        round_obj = None
+        phase = None
+        
+        if round_id:
+            # 尝试直接通过 BiddingRound ID 获取
+            try:
+                round_obj = BiddingRound.objects.get(id=round_id, bidding_type=bid_type)
+                phase = round_obj.competition_phase
+            except BiddingRound.DoesNotExist:
+                # 如果不是 BiddingRound ID，尝试作为 CompetitionPhase ID
+                phase = get_active_phase_for_bidding(
+                    bid_type=bid_type,
+                    phase_id=round_id,
+                    is_admin=is_admin
+                )
+                if phase:
+                    round_obj = phase.bidding_rounds.filter(bidding_type=bid_type).first()
+                    if not round_obj:
+                        round_obj = BiddingRound.objects.create(
+                            competition_phase=phase,
+                            bidding_type=bid_type,
+                            name=phase.name,
+                            status='active'
+                        )
+        else:
+            # 未指定 ID，使用辅助函数获取活跃阶段
+            phase = get_active_phase_for_bidding(
+                bid_type=bid_type,
+                phase_id=None,
+                is_admin=is_admin
+            )
+            if phase:
+                round_obj = phase.bidding_rounds.filter(bidding_type=bid_type).first()
+                if not round_obj:
+                    round_obj = BiddingRound.objects.create(
+                        competition_phase=phase,
+                        bidding_type=bid_type,
+                        name=phase.name,
+                        status='active'
+                    )
         
         # 验证阶段是否可用于提交
         is_valid, error_message = validate_phase_for_submission(phase, is_admin)
@@ -635,15 +669,11 @@ def user_bids_root(request):
                 'message': error_message
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # 查找或创建对应的 BiddingRound
-        round_obj = phase.bidding_rounds.filter(bidding_type=bid_type).first()
         if not round_obj:
-            round_obj = BiddingRound.objects.create(
-                competition_phase=phase,
-                bidding_type=bid_type,
-                name=phase.name,
-                status='active'
-            )
+            return Response({
+                'success': False,
+                'message': '当前没有活跃的竞标轮次'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             amount = int(amount)
