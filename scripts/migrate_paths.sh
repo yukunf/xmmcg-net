@@ -27,10 +27,14 @@ OLD_LOG_DIR="/var/www/xmmcg-net/logs"
 NEW_LOG_DIR="/var/log/xmmcg"
 
 if [ -d "$OLD_LOG_DIR" ]; then
-    echo "📦 迁移旧日志文件..."
-    cp -r "$OLD_LOG_DIR"/* "$NEW_LOG_DIR/" 2>/dev/null || true
-    chown -R www-data:www-data "$NEW_LOG_DIR"
-    echo "✅ 日志文件迁移完成"
+    if compgen -G "$OLD_LOG_DIR"/* > /dev/null; then
+        echo "📦 迁移旧日志文件..."
+        cp -r "$OLD_LOG_DIR"/* "$NEW_LOG_DIR/"
+        chown -R www-data:www-data "$NEW_LOG_DIR"
+        echo "✅ 日志文件迁移完成"
+    else
+        echo "ℹ️ 未发现需要迁移的旧日志文件"
+    fi
 fi
 
 # 更新 systemd 服务（如果存在）
