@@ -446,18 +446,3 @@ class PeerReviewAdmin(admin.ModelAdmin):
         }),
     )
 
-
-# 第二轮竞标相关Admin（已废弃）
-# @admin.register(SecondBiddingRound)
-# class SecondBiddingRoundAdmin(admin.ModelAdmin):
-#     ...
-
-
-# @admin.register(SecondBid)
-# class SecondBidAdmin(admin.ModelAdmin):
-#     ...
-
-
-# @admin.register(SecondBidResult)
-# class SecondBidResultAdmin(admin.ModelAdmin):
-#     ...%

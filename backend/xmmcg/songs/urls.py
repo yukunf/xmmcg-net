@@ -54,10 +54,3 @@ urlpatterns = [
     
     # ==================== 第二轮竞标相关路由（已废弃，使用统一的竞标系统） ====================
     # 注意：以下路由已被注释，现在使用统一的Bid系统来处理谱面竞标
-    # path('second-bidding-rounds/', views.second_bidding_rounds, name='second-bidding-rounds'),
-    # path('second-bidding-rounds/<int:second_round_id>/available-charts/', views.available_charts_for_second_bidding, name='available-charts'),
-    # path('second-bids/', views.submit_second_bid, name='submit-second-bid'),
-    # path('second-bidding-rounds/<int:second_round_id>/my-bids/', views.get_user_second_bids, name='get-user-second-bids'),
-    # path('second-bidding-rounds/<int:second_round_id>/allocate/', views.allocate_second_bids, name='allocate-second-bids'),
-    # path('second-bidding-rounds/<int:second_round_id>/my-results/', views.get_second_bid_results, name='get-second-bid-results'),
-]
