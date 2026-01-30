@@ -136,13 +136,15 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "zh-hans"  # 中文简体
 
-TIME_ZONE = "UTC"
+# 时区设置：使用中国标准时间（Asia/Shanghai）
+# 这确保了定时任务和数据库时间的一致性
+TIME_ZONE = config('TIME_ZONE', default='Asia/Shanghai')
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = True  # 启用时区支持，内部使用 UTC，显示时转换为 TIME_ZONE
 
 
 # Static files (CSS, JavaScript, Images)
