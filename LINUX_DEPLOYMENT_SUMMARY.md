@@ -90,8 +90,8 @@
 
 #### 部署步骤：
 ```bash
-chmod +x /var/www/xmmcg-net/scripts/deploy_phase_update.sh
-sudo /var/www/xmmcg-net/scripts/deploy_phase_update.sh
+chmod +x /opt/xmmcg/scripts/deploy_phase_update.sh
+sudo /opt/xmmcg/scripts/deploy_phase_update.sh
 ```
 
 ---
