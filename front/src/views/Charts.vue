@@ -1125,14 +1125,23 @@ const checkChartingPhase = async () => {
     currentPhase.value = phase
     currentPhaseName.value = phase.name || '未知'
     
-    // 检查是否在制谱期（假设 phase_key 包含 'mapping' 或 'chart'）
-    isChartingPhase.value = phase.page_access?.charts === true || 
-                            phase.phase_key?.includes('mapping') ||
-                            phase.phase_key?.includes('chart')
+    // ✅ 严格检查：必须同时满足 is_active=true 和 phase_key 匹配
+    // 这与后端的权限检查逻辑保持一致
+    isChartingPhase.value = phase.is_active === true && (
+      phase.page_access?.charts === true || 
+      phase.phase_key?.includes('mapping') ||
+      phase.phase_key?.includes('chart')
+    )
   } catch (error) {
     console.error('检查阶段失败:', error)
-    isChartingPhase.value = true // 默认允许
+    isChartingPhase.value = false // ✅ 默认禁止（更安全）
   }
+}
+
+// ✅ 检查是否在谱面竞标阶段
+const isChartBiddingPhase = () => {
+  return currentPhase.value?.is_active === true && 
+         (currentPhase.value?.phase_key?.includes('chart') || currentPhase.value?.phase_key?.includes('bid'))
 }
 
 const loadMyBidResult = async () => {
