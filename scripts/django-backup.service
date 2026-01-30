@@ -1,0 +1,9 @@
+[Unit]
+Description=Django SQLite Database Backup Service
+
+[Service]
+Type=oneshot
+# 这里非常重要：填写运行 Django 的用户，避免权限问题
+User=root 
+# 或者是你的用户名，如 User=ubuntu，前提是该用户有权读写那些目录
+ExecStart=/opt/xmmcg/scripts/backup_sqlite.sh

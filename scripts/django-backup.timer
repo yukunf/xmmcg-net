@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Django Backup Daily
+
+[Timer]
+# 每天凌晨 3 点执行
+OnCalendar=*-*-* 03:00:00
+# 如果关机错过了时间，开机后立即执行
+Persistent=true
+# 关联上面的 service
+Unit=django-backup.service
+
+[Install]
+WantedBy=timers.target
