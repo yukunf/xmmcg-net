@@ -1,0 +1,14 @@
+[Unit]
+Description=XMMCG Phase Status Update Timer (Every 10 minutes)
+Requires=xmmcg-phase-update.service
+
+[Timer]
+# 每10分钟的第3秒执行一次
+OnCalendar=*:0/10:03
+# 如果错过了执行时间，立即执行一次
+Persistent=true
+# 首次执行延迟（避免启动时立即执行）
+OnBootSec=5min
+
+[Install]
+WantedBy=timers.target

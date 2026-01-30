@@ -354,8 +354,13 @@
                         </el-button>
                       </template>
 
-                      <!-- 竞标按钮 -->
-                      <el-button type="success" :icon="TrophyBase" @click="showBidDialog(song)">
+                      <!-- 竞标按钮 - 仅在竞标阶段显示 -->
+                      <el-button 
+                        v-if="isSongBiddingPhase() && !isMyOwnSong(song)"
+                        type="success" 
+                        :icon="TrophyBase" 
+                        @click="showBidDialog(song)"
+                      >
                         竞标
                       </el-button>
                     </div>
@@ -615,8 +620,19 @@ const isMusicSubmissionPhase = () => {
       return false;
   }
 
-  // 检查是否存在 music_submit
+  // 检查是否存在 music_submit 阶段且 is_active
   return allCompetitionPhases.value.some(phase => (phase.phase_key === "music_submit" && phase.is_active));
+}
+
+// ✅ 检查是否在歌曲竞标阶段（只在 music_bid 阶段开放）
+const isSongBiddingPhase = () => {
+  if (!allCompetitionPhases.value || allCompetitionPhases.value.length === 0) {
+    return false;
+  }
+  // 只检查 music_bid 阶段
+  return allCompetitionPhases.value.some(phase => 
+    phase.phase_key === 'music_bid' && phase.is_active
+  );
 }
 
 // 计算属性：分页后的歌曲

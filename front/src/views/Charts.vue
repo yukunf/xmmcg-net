@@ -426,7 +426,7 @@
                   下载
                 </el-button>
                 <el-button
-                  v-if="chart.is_part_one && chart.status === 'part_submitted'"
+                  v-if="isChartBiddingPhase() && chart.is_part_one && chart.status === 'part_submitted'"
                   type="success"
                   size="small"
                   :icon="TrophyBase"
@@ -1125,14 +1125,23 @@ const checkChartingPhase = async () => {
     currentPhase.value = phase
     currentPhaseName.value = phase.name || '未知'
     
-    // 检查是否在制谱期（假设 phase_key 包含 'mapping' 或 'chart'）
-    isChartingPhase.value = phase.page_access?.charts === true || 
-                            phase.phase_key?.includes('mapping') ||
-                            phase.phase_key?.includes('chart')
+    // ✅ 谱面创作阶段：只在 mapping1 或 mapping2 开放
+    isChartingPhase.value = phase.is_active === true && (
+      phase.phase_key === 'mapping1' || 
+      phase.phase_key === 'mapping2' ||
+      phase.phase_key === 'chart_mapping'
+    )
   } catch (error) {
     console.error('检查阶段失败:', error)
-    isChartingPhase.value = true // 默认允许
+    isChartingPhase.value = false // ✅ 默认禁止（更安全）
   }
+}
+
+// ✅ 检查是否在谱面竞标阶段（只在 chart_bid 或 second_bidding 阶段开放）
+const isChartBiddingPhase = () => {
+  return currentPhase.value?.is_active === true && 
+         (currentPhase.value?.phase_key === 'chart_bid' || 
+          currentPhase.value?.phase_key === 'second_bidding')
 }
 
 const loadMyBidResult = async () => {

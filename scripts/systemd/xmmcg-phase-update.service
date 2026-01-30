@@ -1,0 +1,22 @@
+[Unit]
+Description=XMMCG Phase Status Update Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/xmmcg/backend/xmmcg
+Environment="PATH=/opt/xmmcg/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/xmmcg/scripts/update_phase_linux.sh
+
+# 日志配置
+StandardOutput=append:/var/log/xmmcg/phase_update_systemd.log
+StandardError=append:/var/log/xmmcg/phase_update_systemd_error.log
+
+# 安全设置
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
