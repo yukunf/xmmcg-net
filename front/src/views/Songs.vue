@@ -623,16 +623,14 @@ const isMusicSubmissionPhase = () => {
   return allCompetitionPhases.value.some(phase => (phase.phase_key === "music_submit" && phase.is_active));
 }
 
-// ✅ 检查是否在歌曲竞标阶段
+// ✅ 检查是否在歌曲竞标阶段（只在 music_bid 阶段开放）
 const isSongBiddingPhase = () => {
   if (!allCompetitionPhases.value || allCompetitionPhases.value.length === 0) {
     return false;
   }
-  // 检查是否存在包含 'bidding' 的阶段且 is_active（排除 second_bidding）
+  // 只检查 music_bid 阶段
   return allCompetitionPhases.value.some(phase => 
-    phase.phase_key?.includes('bidding') && 
-    !phase.phase_key?.includes('chart') && 
-    phase.is_active
+    phase.phase_key === 'music_bid' && phase.is_active
   );
 }
 
