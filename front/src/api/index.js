@@ -457,10 +457,12 @@ export const getCompetitionStatus = async () => {
 
 /**
  * 获取所有比赛阶段
+ * @param {boolean} includeInactive - 是否包含未激活的阶段，默认为 false
  */
-export const getCompetitionPhases = async () => {
+export const getCompetitionPhases = async (includeInactive = false) => {
   try {
-    const response = await api.get('/songs/phases/')
+    const params = includeInactive ? { include_inactive: 'true' } : {}
+    const response = await api.get('/songs/phases/', { params })
     return response
   } catch (error) {
     console.error('获取比赛阶段失败:', error)

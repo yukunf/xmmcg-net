@@ -209,10 +209,23 @@ def get_competition_status(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_competition_phases(request):
-    """获取所有比赛阶段信息"""
-    phases = CompetitionPhase.objects.filter(is_active=True).order_by('order')
+    """获取所有比赛阶段信息
+    
+    查询参数:
+        include_inactive: 'true' 时返回所有阶段（包括 is_active=False 的），
+                         否则只返回 is_active=True 的阶段（默认行为）
+    """
+    include_inactive = request.GET.get('include_inactive', 'false').lower() == 'true'
+    
+    if include_inactive:
+        phases = CompetitionPhase.objects.all().order_by('order')
+    else:
+        phases = CompetitionPhase.objects.filter(is_active=True).order_by('order')
+    
     serializer = CompetitionPhaseSerializer(phases, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 
 
 @api_view(['GET'])

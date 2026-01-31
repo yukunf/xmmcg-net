@@ -112,7 +112,8 @@ const getPhaseStatusText = (status) => {
 
 const loadPhases = async () => {
   try {
-    const data = await getCompetitionPhases()
+    // 时间线显示所有阶段（包括未激活的），以便管理员查看完整计划
+    const data = await getCompetitionPhases(true)
     phases.value = data
   } catch (error) {
     console.error('加载竞赛阶段失败:', error)
