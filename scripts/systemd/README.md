@@ -21,35 +21,67 @@
 
 ## 安装步骤
 
-### 1. 设置脚本执行权限
+### 0. 完整权限设置脚本（必须先执行）
+
+**⚠️ 这是最关键的一步，必须在所有其他步骤之前执行！**
 
 ```bash
-# 必须先设置执行权限
-sudo chmod +x /opt/xmmcg/scripts/update_phase_linux.sh
+# 一键设置所有必要权限的脚本
+sudo bash -c '
+# 1. 设置脚本执行权限
+chmod +x /opt/xmmcg/scripts/update_phase_linux.sh
+
+# 2. 设置正确的文件所有权
+chown -R www-data:www-data /opt/xmmcg/
+
+# 3. 设置数据库权限
+chown www-data:www-data /opt/xmmcg/backend/xmmcg/db.sqlite3
+chmod 664 /opt/xmmcg/backend/xmmcg/db.sqlite3
+
+# 4. 设置日志目录权限
+mkdir -p /var/log/xmmcg
+chown www-data:www-data /var/log/xmmcg
+chmod 755 /var/log/xmmcg
+
+# 5. 验证权限设置
+echo "=== 权限验证 ==="
+echo "脚本权限："
+ls -l /opt/xmmcg/scripts/update_phase_linux.sh
+echo "数据库权限："
+ls -l /opt/xmmcg/backend/xmmcg/db.sqlite3
+echo "日志目录权限："
+ls -ld /var/log/xmmcg
+echo "=== 完成 ==="
+'
 ```
 
-### 2. 复制配置文件
+**检查权限是否正确：**
+
+```bash
+# 脚本应该显示 -rwxr-xr-x 且所有者为 www-data
+ls -l /opt/xmmcg/scripts/update_phase_linux.sh
+
+# 数据库应该显示 -rw-rw-r-- 且所有者为 www-data
+ls -l /opt/xmmcg/backend/xmmcg/db.sqlite3
+
+# 手动测试脚本能否执行（不要用 sudo）
+sudo -u www-data /opt/xmmcg/scripts/update_phase_linux.sh
+```
+
+### 1. 复制配置文件
 
 ```bash
 sudo cp /opt/xmmcg/scripts/systemd/xmmcg-phase-update.service /etc/systemd/system/
 sudo cp /opt/xmmcg/scripts/systemd/xmmcg-phase-update.timer /etc/systemd/system/
 ```
 
-### 3. 创建日志目录
-
-```bash
-sudo mkdir -p /var/log/xmmcg
-sudo chown www-data:www-data /var/log/xmmcg
-sudo chmod 755 /var/log/xmmcg
-```
-
-### 4. 重新加载 systemd
+### 3. 重新加载 systemd
 
 ```bash
 sudo systemctl daemon-reload
 ```
 
-### 5. 启用并启动定时器
+### 4. 启用并启动定时器
 
 ```bash
 sudo systemctl enable xmmcg-phase-update.timer
@@ -145,41 +177,108 @@ sudo nano /etc/logrotate.d/xmmcg
 
 1. **脚本无执行权限（Permission denied）**
    ```bash
-   # 错误：Permission denied at step EXEC
-   # 解决：设置执行权限
-   sudo chmod +x /opt/xmmcg/scripts/update_phase_linux.sh
+   # 错误信息：
+   # - "Permission denied" at step EXEC
+   # - "Unable to locate executable"
    
-   # 验证权限
-   ls -la /opt/xmmcg/scripts/update_phase_linux.sh
-   # 应该显示类似：-rwxr-xr-x
+   # 解决方案：执行完整权限设置脚本（见上方"0. 完整权限设置脚本"）
+   sudo bash -c '
+   chmod +x /opt/xmmcg/scripts/update_phase_linux.sh
+   chown -R www-data:www-data /opt/xmmcg/
+   chown www-data:www-data /opt/xmmcg/backend/xmmcg/db.sqlite3
+   chmod 664 /opt/xmmcg/backend/xmmcg/db.sqlite3
+   '
+   
+   # 验证权限（应显示 -rwxr-xr-x 且所有者为 www-data）
+   ls -l /opt/xmmcg/scripts/update_phase_linux.sh
+   
+   # 测试脚本能否以 www-data 用户身份运行
+   sudo -u www-data /opt/xmmcg/scripts/update_phase_linux.sh
    ```
-4
-2. **文件所有权问题**
+
+2. **SELinux 权限问题（仅限 CentOS/RHEL）**
+2. **SELinux 权限问题（仅限 CentOS/RHEL）**
+   ```bash
+   # 如果是 SELinux 导致的权限问题
+   sudo chcon -t bin_t /opt/xmmcg/scripts/update_phase_linux.sh
+   
+   # 或者临时关闭 SELinux（不推荐）
+   sudo setenforce 0
+   ```
+
+3. **文件所有权问题**
    ```bash
    sudo chown -R www-data:www-data /opt/xmmcg
    sudo chown -R www-data:www-data /var/log/xmmcg
    ```
 
-3. **虚拟环境路径错误**
-   - 检查 `/opt/xmmcg/.venv/bin/python` 是否存在
-   - 确保虚拟环境已正确安装 Django 和依赖
+3. **文件所有权问题**
+   ```bash
+   # 设置正确的所有者为 www-data
+   sudo chown -R www-data:www-data /opt/xmmcg
+   sudo chown -R www-data:www-data /var/log/xmmcg
+   
+   # 特别注意数据库文件权限
+   sudo chown www-data:www-data /opt/xmmcg/backend/xmmcg/db.sqlite3
+   sudo chmod 664 /opt/xmmcg/backend/xmmcg/db.sqlite3
+   ```
 
-3. **数据库权限**
+4. **虚拟环境路径错误**
+   ```bash
+   # 检查虚拟环境是否存在
+   ls -l /opt/xmmcg/.venv/bin/python
+   
+   # 确保虚拟环境已正确安装 Django 和依赖
+   sudo -u www-data /opt/xmmcg/.venv/bin/python -c "import django; print(django.__version__)"
+   ```
+
+5. **数据库权限**
    ```bash
    sudo chown www-data:www-data /opt/xmmcg/backend/xmmcg/db.sqlite3
+   sudo chmod 664 /opt/xmmcg/backend/xmmcg/db.sqlite3
    ```
 
 ### 调试命令
 
 ```bash
-# 停用定时器
+# 1. 停用定时器
 sudo systemctl stop xmmcg-phase-update.timer
+sudo systemctl disable xmmcg-phase-update.timer
 
-# 手动运行脚本进行调试
+# 2. 执行完整权限设置（最重要！）
+sudo bash -c '
+chmod +x /opt/xmmcg/scripts/update_phase_linux.sh
+chown -R www-data:www-data /opt/xmmcg/
+chown www-data:www-data /opt/xmmcg/backend/xmmcg/db.sqlite3
+chmod 664 /opt/xmmcg/backend/xmmcg/db.sqlite3
+mkdir -p /var/log/xmmcg
+chown www-data:www-data /var/log/xmmcg
+chmod 755 /var/log/xmmcg
+'
+
+# 3. 验证权限设置
+echo "=== 脚本权限检查 ==="
+ls -l /opt/xmmcg/scripts/update_phase_linux.sh
+# 期望输出：-rwxr-xr-x ... www-data www-data
+
+echo "=== 数据库权限检查 ==="
+ls -l /opt/xmmcg/backend/xmmcg/db.sqlite3
+# 期望输出：-rw-rw-r-- ... www-data www-data
+
+# 4. 手动运行脚本进行调试（以 www-data 用户身份）
 sudo -u www-data /opt/xmmcg/scripts/update_phase_linux.sh
 
-# 检查脚本权限
-ls -la /opt/xmmcg/scripts/update_phase_linux.sh
+# 5. 如果手动运行成功，重新启用定时器
+sudo systemctl daemon-reload
+sudo systemctl enable xmmcg-phase-update.timer
+sudo systemctl start xmmcg-phase-update.timer
+
+# 6. 检查服务状态
+sudo systemctl status xmmcg-phase-update.timer
+sudo systemctl status xmmcg-phase-update.service
+
+# 7. 查看详细日志
+sudo journalctl -u xmmcg-phase-update.service -f
 ```
 
 ## 对比：Cron vs Systemd Timer
