@@ -1378,39 +1378,19 @@ def submit_chart(request, result_id):
             # 准备上传数据
             maidata_content = ''
             if chart.chart_file:
-                # 兼容本地和生产环境的文件读取
-                try:
-                    if hasattr(chart.chart_file, 'path'):
-                        # FileField：从磁盘读取（生产环境和本地保存后的文件）
-                        with open(chart.chart_file.path, 'r', encoding='utf-8') as f:
-                            maidata_content = f.read()
-                    else:
-                        # UploadedFile：从内存读取（本地上传时）
-                        chart.chart_file.seek(0)
-                        maidata_content = chart.chart_file.read()
-                        if isinstance(maidata_content, bytes):
-                            maidata_content = maidata_content.decode('utf-8')
-                except Exception as e:
-                    logger.error(f"读取谱面文件失败: {e}")
-                    raise
+                chart.chart_file.seek(0)
+                maidata_content = chart.chart_file.read()
+                if isinstance(maidata_content, bytes):
+                    maidata_content = maidata_content.decode('utf-8')
             
             upload_data = {
                 'maidata_content': maidata_content,
-                # 优先使用 Chart 自己的音频文件，如果没有则使用 Song 的
-                'audio_file': chart.audio_file if chart.audio_file else (chart.song.audio_file if chart.song else None),
-                # 优先使用 Chart 自己的封面，如果没有则使用 Song 的
-                'cover_file': chart.cover_image if chart.cover_image else (chart.song.cover_image if hasattr(chart.song, 'cover_image') and chart.song else None),
-                # 使用 Chart 的背景视频
+                'audio_file': chart.song.audio_file if chart.song else None,
+                'cover_file': chart.cover_image if chart.cover_image else (chart.song.cover_image if hasattr(chart.song, 'cover_image') else None),
                 'video_file': chart.background_video if chart.background_video else None,
                 'is_part_chart': (chart.status == 'part_submitted'),
                 'folder_name': f"{chart.song.title}_{chart.user.username}" if chart.song else f"Chart_{chart.id}"
             }
-            
-            # 记录使用的文件来源
-            logger.info(f"Majdata 上传文件来源:")
-            logger.info(f"  audio: {'Chart自带' if chart.audio_file else 'Song引用'} - {upload_data['audio_file'].name if upload_data['audio_file'] else 'None'}")
-            logger.info(f"  cover: {'Chart自带' if chart.cover_image else 'Song引用'} - {upload_data['cover_file'].name if upload_data['cover_file'] else 'None'}")
-            logger.info(f"  video: {'Chart自带' if chart.background_video else 'None'} - {upload_data['video_file'].name if upload_data['video_file'] else 'None'}")
             
             upload_result = MajdataService.upload_chart(upload_data)
             

@@ -227,7 +227,7 @@ class MajdataService:
         准备文件用于上传
         
         Args:
-            file_obj: Django FileField/ImageField、UploadedFile 对象或文件路径字符串
+            file_obj: Django UploadedFile 对象或文件路径字符串
             preferred_names: 优先使用的文件名列表（如 ['bg.png', 'bg.jpg']）
             file_type: 文件类型（'image', 'audio', 'video'）
             
@@ -254,40 +254,7 @@ class MajdataService:
             with open(file_obj, 'rb') as f:
                 file_data = f.read()
         
-        # 如果是 Django FileField/ImageField（已保存的文件，有 .path 属性）
-        # 生产环境：文件存储在 /var/www/xmmcg/media/
-        # 本地环境：文件存储在 D:\code\xmmcg\backend\xmmcg\media\
-        elif hasattr(file_obj, 'path'):
-            try:
-                # 获取文件的实际物理路径
-                file_path = file_obj.path
-                
-                if not os.path.exists(file_path):
-                    logger.error(f"文件路径不存在: {file_path}")
-                    raise FileNotFoundError(f"文件不存在: {file_path}")
-                
-                # 确定文件扩展名
-                original_name = os.path.basename(file_obj.name)
-                ext = os.path.splitext(original_name)[1]
-                
-                # 从优先列表中选择匹配的文件名
-                filename = preferred_names[0]  # 默认使用第一个
-                for name in preferred_names:
-                    if name.endswith(ext):
-                        filename = name
-                        break
-                
-                # 从物理路径读取文件内容
-                with open(file_path, 'rb') as f:
-                    file_data = f.read()
-                
-                logger.debug(f"从 FileField 读取: {file_path}, {len(file_data)} bytes")
-                
-            except Exception as e:
-                logger.error(f"处理 FileField 时出错: {e}")
-                raise
-        
-        # 如果是 Django UploadedFile（内存中的文件，有 .read() 方法）
+        # 如果是 Django UploadedFile
         elif hasattr(file_obj, 'read'):
             # 确定文件扩展名
             original_name = getattr(file_obj, 'name', '')
@@ -303,8 +270,6 @@ class MajdataService:
             # 读取文件内容
             file_obj.seek(0)  # 确保从头读取
             file_data = file_obj.read()
-            
-            logger.debug(f"从 UploadedFile 读取: {len(file_data)} bytes")
         
         else:
             raise ValueError(f"不支持的文件对象类型: {type(file_obj)}")
