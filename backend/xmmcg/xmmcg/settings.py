@@ -283,3 +283,25 @@ PEER_REVIEW_MAX_SCORE = config('PEER_REVIEW_MAX_SCORE', default=50, cast=int)  #
 # ==================== 可配置常量 ====================
 # 新用户注册时获得的默认代币数量
 DEFAULT_USER_TOKENS = 1000
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler', # 这会将日志推送到 stdout/stderr
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO', # 确保级别高于或等于 INFO，否则 logger.info 会被过滤
+    },
+}
