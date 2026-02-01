@@ -1385,7 +1385,7 @@ def submit_chart(request, result_id):
             
             upload_data = {
                 'maidata_content': maidata_content,
-                'audio_file': chart.song.audio_file if chart.song else None,
+                'audio_file': chart.audio_file if chart.audio_file else None,
                 'cover_file': chart.cover_image if chart.cover_image else (chart.song.cover_image if hasattr(chart.song, 'cover_image') else None),
                 'video_file': chart.background_video if chart.background_video else None,
                 'is_part_chart': (chart.status == 'part_submitted'),
