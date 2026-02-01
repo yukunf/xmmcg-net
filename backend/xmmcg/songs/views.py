@@ -1376,12 +1376,24 @@ def submit_chart(request, result_id):
         
         try:
             # 准备上传数据
+            logger.info(f"准备上传谱面到 Majdata.net: Chart ID={chart.id}")
+            logger.info(f"  环境: DEBUG={settings.DEBUG}, MEDIA_ROOT={settings.MEDIA_ROOT}")
+            
             maidata_content = ''
             if chart.chart_file:
-                chart.chart_file.seek(0)
-                maidata_content = chart.chart_file.read()
-                if isinstance(maidata_content, bytes):
-                    maidata_content = maidata_content.decode('utf-8')
+                # 兼容两种文件类型：UploadedFile（本地）和 FileField（远程）
+                if hasattr(chart.chart_file, 'path'):
+                    # FileField: 已保存到磁盘，从物理路径读取
+                    logger.info(f"  读取 maidata（FileField）: {chart.chart_file.path}")
+                    with open(chart.chart_file.path, 'r', encoding='utf-8') as f:
+                        maidata_content = f.read()
+                else:
+                    # UploadedFile: 在内存中，直接读取
+                    logger.info(f"  读取 maidata（UploadedFile）")
+                    chart.chart_file.seek(0)
+                    maidata_content = chart.chart_file.read()
+                    if isinstance(maidata_content, bytes):
+                        maidata_content = maidata_content.decode('utf-8')
             
             upload_data = {
                 'maidata_content': maidata_content,
@@ -1391,6 +1403,11 @@ def submit_chart(request, result_id):
                 'is_part_chart': (chart.status == 'part_submitted'),
                 'folder_name': f"{chart.song.title}_{chart.user.username}" if chart.song else f"Chart_{chart.id}"
             }
+            
+            logger.info(f"  maidata 长度: {len(maidata_content)} chars")
+            logger.info(f"  audio_file: {upload_data['audio_file'].name if upload_data['audio_file'] else 'None'}")
+            logger.info(f"  cover_file: {upload_data['cover_file'].name if upload_data['cover_file'] else 'None'}")
+            logger.info(f"  video_file: {upload_data['video_file'].name if upload_data['video_file'] else 'None'}")
             
             upload_result = MajdataService.upload_chart(upload_data)
             
