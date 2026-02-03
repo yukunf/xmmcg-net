@@ -1400,7 +1400,7 @@ def submit_chart(request, result_id):
                 'audio_file': chart.audio_file if chart.audio_file else None,
                 'cover_file': chart.cover_image if chart.cover_image else (chart.song.cover_image if hasattr(chart.song, 'cover_image') else None),
                 'video_file': chart.background_video if chart.background_video else None,
-                'is_part_chart': (chart.status == 'part_submitted'),
+                'is_part_chart': (chart.is_part_one),
                 'folder_name': f"{chart.song.title}_{chart.user.username}" if chart.song else f"Chart_{chart.id}"
             }
             
@@ -1408,6 +1408,12 @@ def submit_chart(request, result_id):
             logger.info(f"  audio_file: {upload_data['audio_file'].name if upload_data['audio_file'] else 'None'}")
             logger.info(f"  cover_file: {upload_data['cover_file'].name if upload_data['cover_file'] else 'None'}")
             logger.info(f"  video_file: {upload_data['video_file'].name if upload_data['video_file'] else 'None'}")
+            logger.info(f"  is_part_chart (chart.is_part_one): {upload_data['is_part_chart']}")
+            
+            # 检查 maidata 中的标题内容
+            title_lines = [line for line in maidata_content.split('\n') if '&title=' in line]
+            if title_lines:
+                logger.info(f"  当前标题行: {title_lines[0]}")
             
             upload_result = MajdataService.upload_chart(upload_data)
             

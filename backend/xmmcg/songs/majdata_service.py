@@ -133,9 +133,37 @@ class MajdataService:
             maidata_content = chart_data.get('maidata_content', '')
             is_part_chart = chart_data.get('is_part_chart', False)
             
+            logger.info(f"[{folder_name}] ===== Maidata 处理开始 =====")
+            logger.info(f"[{folder_name}] is_part_chart: {is_part_chart}")
+            logger.info(f"[{folder_name}] 修改前 maidata 长度: {len(maidata_content)} chars")
+            
+            # 检查修改前的标题
+            title_before = [line for line in maidata_content.split('\n') if line.startswith('&title=')]
+            if title_before:
+                logger.info(f"[{folder_name}] 修改前标题: {title_before[0]}")
+            
             # 根据是否为半成品谱面修改 maidata.txt 内容
             if is_part_chart:
-                maidata_content = cls._modify_maidata_for_part_chart(maidata_content)
+                logger.info(f"[{folder_name}] 开始调用 _modify_maidata_for_part_chart...")
+                maidata_modified = cls._modify_maidata_for_part_chart(maidata_content)
+                logger.info(f"[{folder_name}] 修改后的内容长度: {len(maidata_modified)} chars")
+                
+                # 检查修改是否成功
+                if maidata_modified != maidata_content:
+                    logger.info(f"[{folder_name}] ✓ Maidata 内容已修改")
+                    maidata_content = maidata_modified
+                else:
+                    logger.warning(f"[{folder_name}] ✗ Maidata 内容未改变（可能标题已有标记或未找到标题行）")
+                
+                # 检查修改后的标题（使用 in 而不是 startswith，处理可能的行尾符问题）
+                title_after = [line.strip() for line in maidata_content.split('\n') if '&title=' in line]
+                if title_after:
+                    logger.info(f"[{folder_name}] 修改后标题: {title_after[0]}")
+            else:
+                logger.info(f"[{folder_name}] is_part_chart=False，跳过修改")
+            
+            logger.info(f"[{folder_name}] 最终 maidata 长度: {len(maidata_content)} chars")
+            logger.info(f"[{folder_name}] ===== Maidata 处理结束 =====")
             
             # 准备上传文件（使用 formfiles 字段，按照固定顺序）
             form_files = []
@@ -323,17 +351,33 @@ class MajdataService:
         if not maidata_content:
             return maidata_content
         
-        lines = maidata_content.split('\n')
+        # 处理不同的行尾符（Windows \r\n 和 Unix \n）
+        # 先统一为 \n，处理后再恢复原始格式
+        original_line_ending = '\r\n' if '\r\n' in maidata_content else '\n'
+        
+        # 移除 UTF-8 BOM（如果存在）
+        if maidata_content.startswith('\ufeff'):
+            maidata_content = maidata_content[1:]
+        
+        # 使用通用换行符分割
+        lines = maidata_content.splitlines()
         modified_lines = []
+        modified = False
         
         for line in lines:
-            # 查找标题行并在标题前添加 [谱面碎片] 标记
-            if line.startswith('&title='):
+            # 查找标题行（移除可能的空格）
+            if line.strip().startswith('&title='):
+                # 提取 &title= 之前的内容（可能有空格）
+                prefix_match = line[:line.find('&title=')]
+                title_part = line[line.find('&title='):]  # 获取 &title=... 部分
+                
                 # 提取标题内容
-                title = line[7:]  # 去掉 '&title=' 部分
+                title_content = title_part[7:]  # 去掉 '&title=' 部分
+                
                 # 检查是否已经有 [谱面碎片] 标记，避免重复添加
-                if not title.startswith('[谱面碎片]'):
-                    modified_lines.append(f'&title=[谱面碎片]{title}')
+                if not title_content.startswith('[谱面碎片]'):
+                    modified_lines.append(f'{prefix_match}&title=[谱面碎片]{title_content}')
+                    modified = True
                 else:
                     # 已有标记，不重复添加
                     modified_lines.append(line)
@@ -341,7 +385,15 @@ class MajdataService:
                 # 其他行保持不变
                 modified_lines.append(line)
         
-        return '\n'.join(modified_lines)
+        result = original_line_ending.join(modified_lines)
+        
+        # 如果内容被修改，长度会改变，这里记录一下以供调试
+        if modified:
+            logger.debug(f"_modify_maidata_for_part_chart: 成功修改 maidata，长度从 {len(maidata_content)} 改为 {len(result)}")
+        else:
+            logger.warning(f"_modify_maidata_for_part_chart: 未找到标题行或标题已有标记")
+        
+        return result
     
     @classmethod
     def reset_session(cls):
