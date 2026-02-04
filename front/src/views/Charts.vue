@@ -426,7 +426,7 @@
                   下载
                 </el-button>
                 <el-button
-                  v-if="isChartBiddingPhase() && chart.is_part_one && chart.status === 'part_submitted'"
+                  v-if="isChartBiddingPhase() && chart.status === 'part_submitted'"
                   type="success"
                   size="small"
                   :icon="TrophyBase"
@@ -1137,11 +1137,9 @@ const checkChartingPhase = async () => {
   }
 }
 
-// ✅ 检查是否在谱面竞标阶段（只在 chart_bid 或 second_bidding 阶段开放）
+// ✅ 检查是否在谱面竞标阶段（基于活跃的谱面竞标轮次）
 const isChartBiddingPhase = () => {
-  return currentPhase.value?.is_active === true && 
-         (currentPhase.value?.phase_key === 'chart_bid' || 
-          currentPhase.value?.phase_key === 'second_bidding')
+  return currentChartBidRound.value && currentChartBidRound.value.status === 'active'
 }
 
 const loadMyBidResult = async () => {
@@ -1257,7 +1255,7 @@ const loadMyChartBids = async () => {
     }
     
     // 获取该轮次的竞标
-    const res = await getMyBids(targetChartRound.id)
+    const res = await getMyBids(targetChartRound.id, 'chart')  // 明确指定谱面竞标类型
     
     if (res.success) {
       currentChartBidRound.value = res.round || activeChartRound
@@ -1353,7 +1351,7 @@ const showChartBidDialog = async (chart) => {
       currentChartBidRound.value = activeRound
       
       // 获取用户已有的竞标数
-      const bidsResponse = await getMyBids(activeRound.id)
+      const bidsResponse = await getMyBids(activeRound.id, 'chart')  // 明确指定谱面竞标类型
       if (bidsResponse.success) {
         myChartBidsCount.value = (bidsResponse.bids?.filter(b => b.bid_type === 'chart') || []).length
         maxChartBids.value = bidsResponse.max_bids || 5

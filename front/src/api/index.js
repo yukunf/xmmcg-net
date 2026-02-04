@@ -276,10 +276,18 @@ export const getTargetBids = async (params) => {
 
 /**
  * 获取当前用户的竞标列表
+ * @param {number} roundId - 轮次ID（可选）
+ * @param {string} biddingType - 竞标类型（'song' 或 'chart'，默认 'song'）
  */
-export const getMyBids = async (roundId) => {
+export const getMyBids = async (roundId, biddingType = 'song') => {
   try {
-    const params = roundId ? { round_id: roundId } : {}
+    const params = {}
+    if (roundId) {
+      params.round_id = roundId
+    }
+    if (biddingType) {
+      params.bidding_type = biddingType
+    }
     const response = await api.get('/songs/bids/', { params })
     return response
   } catch (error) {
