@@ -511,14 +511,19 @@ def bidding_rounds_root(request):
 def user_bids_root(request):
     """
     用户竞标管理
-    GET /api/bids/ - 获取当前用户在活跃竞标轮次的竞标
+    GET /api/bids/ - 获取当前用户的竞标
     POST /api/bids/ - 创建新的竞标
+    
+    GET 请求支持的查询参数：
+    - round_id: 指定竞标轮次ID
+    - bidding_type: 指定竞标类型（'song' 或 'chart'），默认为 'song'
     """
     user = request.user
     
     if request.method == 'GET':
         # 获取活跃的竞标轮次
         round_id = request.query_params.get('round_id')
+        bidding_type = request.query_params.get('bidding_type', 'song')  # 默认歌曲竞标
         is_admin = request.user.is_authenticated and request.user.is_staff
         
         round_obj = None
@@ -526,36 +531,51 @@ def user_bids_root(request):
         if round_id:
             # 尝试直接通过 BiddingRound ID 获取
             try:
-                round_obj = BiddingRound.objects.get(id=round_id, bidding_type='song')
+                round_obj = BiddingRound.objects.get(id=round_id)
+                # 验证轮次类型是否匹配
+                if round_obj.bidding_type != bidding_type:
+                    return Response({
+                        'success': True,
+                        'message': f'轮次 {round_id} 是 {round_obj.bidding_type} 竞标轮次，请求的是 {bidding_type} 竞标',
+                        'round': {
+                            'id': round_obj.id,
+                            'name': round_obj.name,
+                            'status': round_obj.status,
+                            'bidding_type': round_obj.bidding_type,
+                        },
+                        'bid_count': 0,
+                        'max_bids': MAX_BIDS_PER_USER,
+                        'bids': []
+                    }, status=status.HTTP_200_OK)
             except BiddingRound.DoesNotExist:
                 # 如果不是 BiddingRound ID，尝试作为 CompetitionPhase ID
                 phase = get_active_phase_for_bidding(
-                    bid_type='song',
+                    bid_type=bidding_type,  # 使用请求的竞标类型
                     phase_id=round_id,
                     is_admin=is_admin
                 )
                 if phase:
-                    round_obj = phase.bidding_rounds.filter(bidding_type='song').first()
+                    round_obj = phase.bidding_rounds.filter(bidding_type=bidding_type).first()
                     if not round_obj:
                         round_obj = BiddingRound.objects.create(
                             competition_phase=phase,
-                            bidding_type='song',
+                            bidding_type=bidding_type,
                             name=phase.name,
                             status='active'
                         )
         else:
             # 未指定 ID，使用辅助函数获取活跃阶段
             phase = get_active_phase_for_bidding(
-                bid_type='song',
+                bid_type=bidding_type,  # 使用请求的竞标类型
                 phase_id=None,
                 is_admin=is_admin
             )
             if phase:
-                round_obj = phase.bidding_rounds.filter(bidding_type='song').first()
+                round_obj = phase.bidding_rounds.filter(bidding_type=bidding_type).first()
                 if not round_obj:
                     round_obj = BiddingRound.objects.create(
                         competition_phase=phase,
-                        bidding_type='song',
+                        bidding_type=bidding_type,
                         name=phase.name,
                         status='active'
                     )
@@ -584,6 +604,7 @@ def user_bids_root(request):
                 'id': round_obj.id,
                 'name': round_obj.name,
                 'status': round_obj.status,
+                'bidding_type': round_obj.bidding_type,
             },
             'bid_count': bids.count(),
             'max_bids': MAX_BIDS_PER_USER,
