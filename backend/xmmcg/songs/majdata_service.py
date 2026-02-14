@@ -29,11 +29,11 @@ class MajdataService:
         Returns:
             requests.Session 或 None（登录失败时）
         """
-        # 如果session已存在且已认证，直接返回
-        if cls._session and cls._is_authenticated:
-            return cls._session
+        # # 如果session已存在且已认证，直接返回
+        # if cls._session and cls._is_authenticated:
+        #     return cls._session
         
-        # 尝试登录
+        # 每次都尝试登录
         return cls._login()
     
     @classmethod
