@@ -591,18 +591,22 @@ class PeerReviewService:
         charts = Chart.objects.filter(
             bidding_round=bidding_round,
             status__in=['final_submitted', 'submitted', 'under_review', 'reviewed'] # TODO Submitted这个状态应当被移除，因为他可被final和part提交替代，但是他在这里和其他地方都混用了，且理应不起作用。
-        ).select_related('user', 'song', 'completion_bid_result__user')
+        ).select_related('user', 'song', 'completion_bid_result__user', 'part_one_chart__user')
         
         if not charts.exists():
             raise ValidationError('该轮次还没有提交的谱面')
         
         # 获取参与评分的用户（所有参与谱面创作的用户）
-        # 包括：第一部分作者 + 第二部分续写者
+        # 包括：
+        # - 谱面提交者（chart.user），对于二部分谱面即续写者
+        # - 二部分谱面对应的一部分原作者（chart.part_one_chart.user）
+        #   → 一部分作者的谱面状态为 part_submitted，不在上方过滤范围内，
+        #     但只要其谱面被人续写并提交了终稿，原作者也应参与互评
         reviewer_ids = set()
         for chart in charts:
-            reviewer_ids.add(chart.user_id)  # 第一部分作者
-            if chart.completion_bid_result:
-                reviewer_ids.add(chart.completion_bid_result.user_id)  # 第二部分作者
+            reviewer_ids.add(chart.user_id)  # 谱面提交者（一部分或二部分作者）
+            if chart.part_one_chart:
+                reviewer_ids.add(chart.part_one_chart.user_id)  # 二部分谱面对应的一部分原作者
         
         reviewers = User.objects.filter(id__in=reviewer_ids)
         
@@ -644,15 +648,16 @@ class PeerReviewService:
         
         # 建立谱面与其所有参与者的映射（支持两部分合作谱面）
         # 一张谱面可能有：
-        # 1. 只有第一部分作者（chart.user）
-        # 2. 第一部分作者 + 第二部分作者（chart.user + chart.completion_bid_result.user）
+        # 1. 只有提交者（chart.user，即一部分作者独立提交）
+        # 2. 续写者（chart.user）+ 一部分原作者（chart.part_one_chart.user）
+        # 参与者不得评价自己参与创作的谱面
         chart_contributors_map = {}
         for chart in charts_list:
-            contributors = {chart.user_id}  # 第一部分作者
+            contributors = {chart.user_id}  # 谱面提交者
             
-            # 如果有第二部分（续写者），也加入贡献者集合
-            if chart.completion_bid_result:
-                contributors.add(chart.completion_bid_result.user_id)
+            # 如果是二部分谱面，一部分原作者也是贡献者，不能评价该谱面
+            if chart.part_one_chart:
+                contributors.add(chart.part_one_chart.user_id)
             
             chart_contributors_map[chart.id] = contributors
         
