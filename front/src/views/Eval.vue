@@ -87,7 +87,7 @@
                     :color="task.favorite ? 'var(--el-color-danger)' : 'var(--el-text-color-placeholder)'"
                     style="transition: color 0.3s;"
                   >
-                    <component :is="task.favorite ? 'StarFilled' : 'Star'" />
+                    <component :is="task.favorite ? StarFilled : Star" />
                   </el-icon>
                 </el-button>
               </el-tooltip>
@@ -147,12 +147,10 @@
 
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit } from '@element-plus/icons-vue'
-import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getMyCharts, getCharts } from '../api'
-import { fa } from 'element-plus/es/locale/index.mjs'
-import { Star, StarFilled } from '@element-plus/icons-vue'
+import { Edit, Star, StarFilled } from '@element-plus/icons-vue'
+import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getCharts, getMyCharts } from '../api'
 
 
 
@@ -339,14 +337,25 @@ const getChartDisplayName = (chart) => {
 // 显示添加额外谱面对话框
 const showAddExtraDialog = async () => {
   try {
-    // 获取所有谱面（不需要round_id）
-    const res = await getCharts()
-    
-    // 过滤掉已经在任务列表中的谱面
+    // 并发获取所有谱面和用户自己的谱面
+    const [res, myChartsRes] = await Promise.all([
+      getCharts({ page_size: 1000 }),
+      getMyCharts()
+    ])
+
+    // 用户自己的谱面ID集合（含一部分半成品）
+    const myChartIds = new Set((myChartsRes.charts || []).map(c => c.id))
+
+    // 只保留可评分状态、不在任务列表中、且不是自己参与的谱面
+    const reviewableStatuses = ['final_submitted', 'under_review', 'reviewed']
     const existingChartIds = reviewTasks.value.map(t => t.chart_id)
-    availableCharts.value = (res.results || res || []).filter(
-      chart => !existingChartIds.includes(chart.id)
-    )
+    availableCharts.value = (res.results || res || []).filter(chart => {
+      if (!reviewableStatuses.includes(chart.status)) return false
+      if (existingChartIds.includes(chart.id)) return false
+      if (myChartIds.has(chart.id)) return false  // 自己是提交者
+      if (chart.part_one_chart && myChartIds.has(chart.part_one_chart.id)) return false  // 自己是一部分原作者
+      return true
+    })
     
     if (availableCharts.value.length === 0) {
       ElMessage.warning('没有更多谱面可以添加')
@@ -381,7 +390,7 @@ const addExtraTask = () => {
     isExtra: true
   })
   
-  ElMessage.success(`已添加「${chart.song_title}」到评分任务`)
+  ElMessage.success(`已添加「${chart.song?.title || '未知标题'}」到评分任务`)
   extraDialogVisible.value = false
   selectedExtraChart.value = null
 }
