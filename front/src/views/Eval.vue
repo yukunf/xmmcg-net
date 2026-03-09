@@ -73,13 +73,13 @@
               style="width: 150px;"
             />
 
-              <el-tooltip 
-                :content="task.favorite ? '取消真爱票' : '设为真爱票'" 
+              <el-tooltip
+                :content="task.favorite ? '取消真爱票' : (favoriteCount >= MAX_FAVORITES ? `真爱票已达上限（${MAX_FAVORITES}张）` : '设为真爱票')"
                 placement="top"
               >
                 <el-button
                   type="text"
-                  @click="task.favorite = !task.favorite"
+                  @click="toggleFavorite(task)"
                   style="margin-left: 10px; padding: 0;"
                 >
                   <el-icon 
@@ -147,7 +147,7 @@
 
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Star, StarFilled } from '@element-plus/icons-vue'
 import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getCharts, getMyCharts } from '../api'
@@ -159,6 +159,17 @@ const submitting = ref(false)
 const canReview = ref(false)
 const maxScore = ref(50)
 const reviewTasks = ref([])
+
+const MAX_FAVORITES = 3
+const favoriteCount = computed(() => reviewTasks.value.filter(t => t.favorite).length)
+
+const toggleFavorite = (task) => {
+  if (!task.favorite && favoriteCount.value >= MAX_FAVORITES) {
+    ElMessage.warning(`真爱票最多投 ${MAX_FAVORITES} 张`)
+    return
+  }
+  task.favorite = !task.favorite
+}
 
 // 额外评分相关
 const extraDialogVisible = ref(false)
