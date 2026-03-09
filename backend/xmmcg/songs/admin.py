@@ -273,7 +273,9 @@ class BiddingRoundAdmin(admin.ModelAdmin):
                     request,
                     f'✓ {bidding_round.name} 互评任务分配成功：'
                     f'分配了 {stats.get("total_allocations", 0)} 个任务，'
-                    f'涉及 {stats.get("reviewers_count", 0)} 个评分者和 {stats.get("charts_count", 0)} 个谱面',
+                    f'涉及 {stats.get("reviewers_count", 0)} 个评分者和 {stats.get("charts_count", 0)} 个谱面，'
+                    f'每张谱面 {stats.get("reviews_per_chart", 0)} 个评分，'
+                    f'每人任务数 {stats.get("tasks_per_reviewer_min", 0)}~{stats.get("tasks_per_reviewer_max", 0)} 个',
                     level=messages.SUCCESS
                 )
                 
