@@ -73,8 +73,8 @@
               v-model="task.score"
               :min="0"
               :max="maxScore"
-              :precision="0"
-              :step="1"
+              :precision="2"
+              :step="0.25"
               placeholder="请输入分数"
               style="width: 150px;"
             />
@@ -249,9 +249,10 @@ const validateScores = () => {
       return false
     }
 
-    if (!Number.isInteger(task.score)) {
-      ElMessage.warning(`"${task.chart_title}"的分数必须为整数`)
-      return false
+    // if (!Number.isInteger(task.score)) {
+    //   ElMessage.warning(`"${task.chart_title}"的分数必须为整数`)
+    //   return false
+    //可以小数
     }
   }
 
