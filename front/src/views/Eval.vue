@@ -253,10 +253,11 @@ const validateScores = () => {
     //   ElMessage.warning(`"${task.chart_title}"的分数必须为整数`)
     //   return false
     //可以小数
-    }
+    //}
   }
 
   return true
+}
 
 // 提交评分
 const submitReviews = async () => {
