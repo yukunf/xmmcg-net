@@ -257,7 +257,6 @@ const validateScores = () => {
   }
 
   return true
-}
 
 // 提交评分
 const submitReviews = async () => {
