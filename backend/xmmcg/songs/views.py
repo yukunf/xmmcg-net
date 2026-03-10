@@ -106,6 +106,7 @@ def validate_phase_for_submission(phase, is_admin=False):
     
     # 普通用户：严格检查 is_active
     if not phase.is_active:
+        print(f"阶段 {phase.name} 未激活，用户无法提交竞标")
         return False, '该竞标轮次未开放或已结束'
     
     return True, None
@@ -1571,10 +1572,10 @@ def allocate_peer_reviews(request, round_id):
     #         'message': '只有管理员可以分配互评任务'
     #     }, status=status.HTTP_403_FORBIDDEN)
     
-    reviews_per_user = int(request.data.get('reviews_per_user', 8))
-    
+    min_reviews_per_chart = int(request.data.get('min_reviews_per_chart', 8))
+
     try:
-        result = PeerReviewService.allocate_peer_reviews(round_id, reviews_per_user)
+        result = PeerReviewService.allocate_peer_reviews(round_id, min_reviews_per_chart)
         return Response({
             'success': True,
             'message': '互评任务分配成功',

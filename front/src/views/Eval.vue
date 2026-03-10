@@ -34,9 +34,15 @@
         <template #header>
           <div class="card-header">
             <span>我的评分任务（{{ reviewTasks.length }}）</span>
-            <el-button type="primary" size="small" @click="showAddExtraDialog">
-              添加额外谱面
-            </el-button>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <el-tag :type="favoriteRemaining === 0 ? 'danger' : 'warning'" size="small">
+                <el-icon style="vertical-align: middle; margin-right: 3px;"><StarFilled /></el-icon>
+                真爱票：{{ favoriteCount }} / {{ MAX_FAVORITES }}
+              </el-tag>
+              <el-button type="primary" size="small" @click="showAddExtraDialog">
+                添加额外谱面
+              </el-button>
+            </div>
           </div>
         </template>
 
@@ -74,17 +80,18 @@
             />
 
               <el-tooltip
-                :content="task.favorite ? '取消真爱票' : (favoriteCount >= MAX_FAVORITES ? `真爱票已达上限（${MAX_FAVORITES}张）` : '设为真爱票')"
+                :content="task.favorite ? '取消真爱票' : (favoriteRemaining === 0 ? `真爱票已用完（${MAX_FAVORITES}/${MAX_FAVORITES}）` : `设为真爱票（剩余 ${favoriteRemaining} 张）`)"
                 placement="top"
               >
                 <el-button
                   type="text"
                   @click="toggleFavorite(task)"
+                  :disabled="!task.favorite && favoriteRemaining === 0"
                   style="margin-left: 10px; padding: 0;"
                 >
-                  <el-icon 
+                  <el-icon
                     :size="24"
-                    :color="task.favorite ? 'var(--el-color-danger)' : 'var(--el-text-color-placeholder)'"
+                    :color="task.favorite ? 'var(--el-color-danger)' : (favoriteRemaining === 0 ? 'var(--el-text-color-disabled)' : 'var(--el-text-color-placeholder)')"
                     style="transition: color 0.3s;"
                   >
                     <component :is="task.favorite ? StarFilled : Star" />
@@ -149,10 +156,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, Star, StarFilled } from '@element-plus/icons-vue'
-import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getCharts, getMyCharts } from '../api'
+import { Edit } from '@element-plus/icons-vue'
+import { getPeerReviewConfig, getMyReviewTasks, submitReview, submitExtraReview, getMyCharts, getCharts } from '../api'
+import { Star, StarFilled } from '@element-plus/icons-vue'
 
-
+const MAX_FAVORITES = 3
 
 const loading = ref(true)
 const submitting = ref(false)
@@ -160,15 +168,20 @@ const canReview = ref(false)
 const maxScore = ref(50)
 const reviewTasks = ref([])
 
-const MAX_FAVORITES = 3
+// 真爱票统计
 const favoriteCount = computed(() => reviewTasks.value.filter(t => t.favorite).length)
+const favoriteRemaining = computed(() => MAX_FAVORITES - favoriteCount.value)
 
 const toggleFavorite = (task) => {
-  if (!task.favorite && favoriteCount.value >= MAX_FAVORITES) {
-    ElMessage.warning(`真爱票最多投 ${MAX_FAVORITES} 张`)
-    return
+  if (task.favorite) {
+    task.favorite = false
+  } else {
+    if (favoriteCount.value >= MAX_FAVORITES) {
+      ElMessage.warning(`真爱票最多只能投 ${MAX_FAVORITES} 张，已全部用完`)
+      return
+    }
+    task.favorite = true
   }
-  task.favorite = !task.favorite
 }
 
 // 额外评分相关

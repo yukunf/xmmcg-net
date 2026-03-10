@@ -1349,6 +1349,7 @@ const showChartBidDialog = async (chart) => {
         return
       }
       currentChartBidRound.value = activeRound
+      console.log('当前活跃的谱面竞标轮次:', activeRound)
       
       // 获取用户已有的竞标数
       const bidsResponse = await getMyBids(activeRound.id, 'chart')  // 明确指定谱面竞标类型

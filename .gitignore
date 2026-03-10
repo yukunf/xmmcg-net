@@ -1,7 +1,9 @@
 backend/xmmcg/media/songs/*.mp3
 backend/xmmcg/media/songs/*.jpg
 backend/xmmcg/media/songs/*.png
-backend/xmmcg/media/songs/__pycache__/*.pyc
+
+*.pyc
+**/__pycache__/
 # Logs
 logs
 *.log
@@ -30,6 +32,4 @@ dist-ssr
 # external files
 .mp3
 backend/xmmcg/media
-backend/xmmcg/songs/__pycache__/
-backend/xmmcg/xmmcg/__pycache__/
-backend/xmmcg/users/__pycache__/
+

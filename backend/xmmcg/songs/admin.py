@@ -260,22 +260,30 @@ class BiddingRoundAdmin(admin.ModelAdmin):
                     error_messages.append(f'{bidding_round.name} 没有已提交的谱面，无法分配互评任务')
                     continue
                 
-                # 执行互评分配（默认每人8个任务，如果失败会自动降低到6个、4个等）
+                # 执行互评分配（默认每张谱面至少8个评分）
                 stats = PeerReviewService.allocate_peer_reviews(
-                    bidding_round.id, 
-                    reviews_per_user=8
+                    bidding_round.id,
+                    min_reviews_per_chart=8
                 )
-                
+
                 success_count += 1
-                
+
                 # 显示分配统计信息
+                rpc_min = stats.get('reviews_per_chart_min', '?')
+                rpc_max = stats.get('reviews_per_chart_max', '?')
+                rpc_desc = str(rpc_min) if rpc_min == rpc_max else f'{rpc_min}~{rpc_max}'
+                tpr_min = stats.get('tasks_per_reviewer_min', '?')
+                tpr_max = stats.get('tasks_per_reviewer_max', '?')
+                tpr_desc = str(tpr_min) if tpr_min == tpr_max else f'{tpr_min}~{tpr_max}'
+                warn = ' ⚠️ 部分谱面未达目标评分数' if not stats.get('reached_target', True) else ''
                 self.message_user(
                     request,
                     f'✓ {bidding_round.name} 互评任务分配成功：'
-                    f'分配了 {stats.get("total_allocations", 0)} 个任务，'
-                    f'涉及 {stats.get("reviewers_count", 0)} 个评分者和 {stats.get("charts_count", 0)} 个谱面，'
-                    f'每张谱面 {stats.get("reviews_per_chart", 0)} 个评分，'
-                    f'每人任务数 {stats.get("tasks_per_reviewer_min", 0)}~{stats.get("tasks_per_reviewer_max", 0)} 个',
+                    f'共 {stats.get("total_allocations", 0)} 个任务，'
+                    f'{stats.get("reviewers_count", 0)} 个评分者，'
+                    f'{stats.get("charts_count", 0)} 张谱面，'
+                    f'每张谱面 {rpc_desc} 个评分，每人 {tpr_desc} 个任务'
+                    + warn,
                     level=messages.SUCCESS
                 )
                 

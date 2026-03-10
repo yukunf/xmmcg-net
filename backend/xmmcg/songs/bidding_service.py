@@ -547,39 +547,37 @@ class PeerReviewService:
     
     @staticmethod
     @transaction.atomic
-    def allocate_peer_reviews(bidding_round_id, reviews_per_user=None):
+    def allocate_peer_reviews(bidding_round_id, min_reviews_per_chart=None):
         """
         为某个竞标轮次分配互评任务
-        
-        核心需求：
-        1. 每张谱面收到相同数量的评分
-        2. 每个评分者评分相同数量的谱面
-        3. 用户不能评自己的任何谱面（支持一人多谱场景）
-        
-        算法（平衡二分图匹配）：
-        - 使用贪心算法进行逐步分配
-        - 维护每个评分者和谱面的剩余评分数
-        - 采用轮转策略保证均衡
-        
-        平衡条件：
-        谱面数 × 每谱面评分数 = 评分者数 × 每人评分任务数
-        
+
+        目标：每张谱面至少收到 min_reviews_per_chart 个评分。
+        在此前提下，尽量均衡每个评分者的任务数。
+
+        算法：
+        - 每轮选"合法评分者最少"的谱面（最受限优先），平局时选评分数最少的
+        - 对该谱面选"当前任务最少"的合法评分者
+        - 每人的自然上限为：可评谱面总数（谱面数 - 自己参与的谱面数）
+        - 循环直到所有谱面达到目标评分数，或无法再分配为止
+
         Args:
             bidding_round_id: 竞标轮次ID
-            reviews_per_user: 每个评分者的评分任务数（默认从settings读取PEER_REVIEW_TASKS_PER_USER）
-                            如果谱面数 ≠ 评分者数，会自动计算每谱面的评分数
-            
+            min_reviews_per_chart: 每张谱面至少收到的评分数
+                                   （默认从 settings.PEER_REVIEW_MIN_PER_CHART 读取，缺省 8）
+
         Returns:
             dict: 包含分配结果统计
-            
+
         Raises:
-            ValidationError: 如果条件不足以进行平衡分配
+            ValidationError: 如果谱面不存在或参数非法
         """
         from .models import Chart, PeerReviewAllocation
-        
-        # 如果未指定，从settings读取默认值
-        if reviews_per_user is None:
-            reviews_per_user = getattr(settings, 'PEER_REVIEW_TASKS_PER_USER', 8)
+
+        if min_reviews_per_chart is None:
+            min_reviews_per_chart = getattr(settings, 'PEER_REVIEW_MIN_PER_CHART', 8)
+
+        if min_reviews_per_chart <= 0:
+            raise ValidationError('min_reviews_per_chart 必须大于 0')
         
         # 获取竞标轮次
         try:
@@ -614,32 +612,11 @@ class PeerReviewService:
         num_charts = charts.count()
         num_reviewers = reviewers.count()
 
-        # 每张谱面固定收到 reviews_per_chart 个评分（reviews_per_user 作为 reviews_per_chart）
-        reviews_per_chart = reviews_per_user
-        total_assignments_needed = num_charts * reviews_per_chart
-
-        print(f"[互评分配] {num_charts}张谱面，{num_reviewers}个评分者")
-        print(f"[互评分配] 每谱面被评{reviews_per_chart}次，总分配数：{total_assignments_needed}")
-        print(f"[互评分配] 每人任务数约为 {total_assignments_needed // num_reviewers}~{total_assignments_needed // num_reviewers + 1}")
-
-        # 清空已有的分配（重新分配）
-        PeerReviewAllocation.objects.filter(
-            bidding_round=bidding_round
-        ).delete()
-
-        # 转换为列表便于操作，打乱谱面顺序使分配更公平
+        # 转换为列表便于操作
         charts_list = list(charts)
-        random.shuffle(charts_list)
         reviewers_list = list(reviewers)
 
-        # 初始化分配计数
-        reviewer_task_counts = {reviewer.id: 0 for reviewer in reviewers_list}
-
-        # 建立谱面与其所有参与者（贡献者）的映射
-        # 一张谱面的贡献者包括：
-        # - chart.user：终稿提交者（可能是独立完成两部分的同一人，也可能只是续写者）
-        # - chart.part_one_chart.user：一部分原作者（与 chart.user 可能是同一人）
-        # 贡献者不得评价自己参与创作的谱面
+        # 建立谱面与贡献者的映射（贡献者不能评自己参与的谱面）
         chart_contributors_map = {}
         for chart in charts_list:
             contributors = {chart.user_id}
@@ -647,58 +624,112 @@ class PeerReviewService:
                 contributors.add(chart.part_one_chart.user_id)
             chart_contributors_map[chart.id] = contributors
 
-        # 创建分配记录
-        allocations = []
+        # 每人的自然上限：可以评的谱面数 = 总谱面数 - 自己参与的谱面数
+        reviewer_authored_counts = {}
+        for contributors in chart_contributors_map.values():
+            for uid in contributors:
+                reviewer_authored_counts[uid] = reviewer_authored_counts.get(uid, 0) + 1
+        reviewer_max_tasks = {
+            r.id: num_charts - reviewer_authored_counts.get(r.id, 0)
+            for r in reviewers_list
+        }
 
-        # 用集合跟踪已分配的(reviewer_id, chart_id)组合，避免重复
+        print(f"[互评分配] {num_charts}张谱面，{num_reviewers}个评分者，目标每张谱面至少{min_reviews_per_chart}个评分")
+
+        # 清空已有的分配（重新分配）
+        PeerReviewAllocation.objects.filter(
+            bidding_round=bidding_round
+        ).delete()
+
+        # 初始化分配计数
+        reviewer_task_counts = {reviewer.id: 0 for reviewer in reviewers_list}
         assigned_pairs = set()
+        allocations = []
+        stuck_charts = set()  # 已无合法评分者、无法再增加评分的谱面
 
-        # 贪心分配：逐张谱面，每次取当前任务最少的可用评分者
-        for chart in charts_list:
-            # 筛选可用评分者：不是该谱面的贡献者，且尚未分配给该谱面
-            eligible = [
+        def get_eligible_reviewers(chart):
+            return [
                 r for r in reviewers_list
-                if r.id not in chart_contributors_map[chart.id]
-                and (r.id, chart.id) not in assigned_pairs
+                if (reviewer_task_counts[r.id] < reviewer_max_tasks[r.id]
+                    and r.id not in chart_contributors_map.get(chart.id, set())
+                    and (r.id, chart.id) not in assigned_pairs)
             ]
 
-            # 按当前任务数从少到多排序，优先分配给任务少的人
-            eligible.sort(key=lambda r: reviewer_task_counts[r.id])
+        # 贪心分配：最受限优先（合法评分者最少的谱面先处理），平局时取评分最少的谱面
+        # 循环直到所有谱面达到 min_reviews_per_chart，或无法继续分配
+        while True:
+            # 还未达到目标评分数且未卡住的谱面
+            needed_charts = [
+                c for c in charts_list
+                if c.id not in stuck_charts and chart_review_counts[c.id] < min_reviews_per_chart
+            ]
+            if not needed_charts:
+                break
 
-            if len(eligible) < reviews_per_chart:
-                chart_owner = chart.user.username
-                raise ValidationError(
-                    f'分配失败：谱面 {chart.id}（作者：{chart_owner}）可用评分者不足，'
-                    f'需要 {reviews_per_chart} 人，但只有 {len(eligible)} 人可评。'
-                )
+            # 为每张需要评分的谱面计算合法评分者列表
+            charts_with_eligible = []
+            for c in needed_charts:
+                eligible = get_eligible_reviewers(c)
+                if not eligible:
+                    stuck_charts.add(c.id)
+                    print(
+                        f'[互评分配] 警告：谱面 {c.id} (作者:{c.user.username}) '
+                        f'已无合法评分者，最终获得 {chart_review_counts[c.id]} 个评分（目标{min_reviews_per_chart}）'
+                    )
+                else:
+                    charts_with_eligible.append((c, eligible))
 
-            for reviewer in eligible[:reviews_per_chart]:
-                allocations.append(PeerReviewAllocation(
-                    bidding_round=bidding_round,
-                    reviewer=reviewer,
-                    chart=chart
-                ))
-                assigned_pairs.add((reviewer.id, chart.id))
-                reviewer_task_counts[reviewer.id] += 1
-        
+            if not charts_with_eligible:
+                break
+
+            # 最受限优先：合法评分者最少的谱面排前面；平局时取当前评分最少的
+            charts_with_eligible.sort(
+                key=lambda x: (len(x[1]), chart_review_counts[x[0].id])
+            )
+            chart, eligible_reviewers = charts_with_eligible[0]
+
+            # 选当前任务最少的评分者，均衡各人负担
+            reviewer = min(eligible_reviewers, key=lambda r: reviewer_task_counts[r.id])
+
+            allocations.append(PeerReviewAllocation(
+                bidding_round=bidding_round,
+                reviewer=reviewer,
+                chart=chart
+            ))
+            assigned_pairs.add((reviewer.id, chart.id))
+            chart_review_counts[chart.id] += 1
+            reviewer_task_counts[reviewer.id] += 1
+
         # 批量创建分配记录
         PeerReviewAllocation.objects.bulk_create(allocations)
-        
+
+        # 统计实际分配结果
+        actual_chart_counts = list(chart_review_counts.values())
+        actual_min = min(actual_chart_counts)
+        actual_max = max(actual_chart_counts)
+        actual_task_counts = list(reviewer_task_counts.values())
+        reached_target = all(v >= min_reviews_per_chart for v in actual_chart_counts)
+        if not reached_target:
+            print(f"[互评分配] 注意：部分谱面评分数不足目标值{min_reviews_per_chart}，实际范围：{actual_min}~{actual_max}")
+        print(f"[互评分配] 完成，共{len(allocations)}个分配，每张谱面{actual_min}~{actual_max}个评分，每人{min(actual_task_counts)}~{max(actual_task_counts)}个任务")
+
         # 更新所有谱面状态为 under_review（从可评分的状态转为评分中）
         Chart.objects.filter(
             bidding_round=bidding_round,
             status__in=['final_submitted', 'submitted']
         ).update(status='under_review')
-        
-        tasks_per_reviewer = {uid: cnt for uid, cnt in reviewer_task_counts.items() if cnt > 0}
+
         return {
             'bidding_round_id': bidding_round_id,
             'total_allocations': len(allocations),
             'charts_count': num_charts,
             'reviewers_count': num_reviewers,
-            'reviews_per_chart': reviews_per_chart,
-            'tasks_per_reviewer_min': min(tasks_per_reviewer.values(), default=0),
-            'tasks_per_reviewer_max': max(tasks_per_reviewer.values(), default=0),
+            'min_reviews_per_chart_target': min_reviews_per_chart,
+            'reviews_per_chart_min': actual_min,
+            'reviews_per_chart_max': actual_max,
+            'reached_target': reached_target,
+            'tasks_per_reviewer_min': min(actual_task_counts),
+            'tasks_per_reviewer_max': max(actual_task_counts),
             'status': 'success'
         }
     
