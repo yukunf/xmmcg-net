@@ -146,6 +146,21 @@ def _meta_row_data(chart) -> list:
     return [chart.id, chart.song.title, chart.designer]
 
 
+def _trimmed_mean(scores: list) -> float | None:
+    """去掉最高分和最低分后的平均值（各去一个）。
+    - n >= 3：去一高一低后平均，保留两位小数
+    - n == 2：直接平均两分
+    - n <= 1：原值或 None
+    """
+    valid = [s for s in scores if s is not None]
+    if not valid:
+        return None
+    if len(valid) <= 2:
+        return round(sum(valid) / len(valid), 2)
+    trimmed = sorted(valid)[1:-1]
+    return round(sum(trimmed) / len(trimmed), 2)
+
+
 # --- Sheet 1：纯评分 ---
 
 def _build_scores_sheet(ws, charts, chart_reviews, reviewers, title_suffix):
@@ -155,13 +170,13 @@ def _build_scores_sheet(ws, charts, chart_reviews, reviewers, title_suffix):
       行2：谱面ID | 歌曲名 | 谱师名 | reviewer1 | reviewer2 | … | 真爱票数
       行3+：数据
     """
-    total_cols = _N_META + len(reviewers) + 1   # +1 真爱票数
+    total_cols = _N_META + len(reviewers) + 2   # +1 去高低均分 +1 真爱票数
 
     # 标题行
     _style_title_row(ws, 1, total_cols, f'互评评分表{title_suffix}')
 
     # 列头行
-    header = _META_COLS + reviewers + ['真爱票数']
+    header = _META_COLS + reviewers + ['去高低均分', '真爱票数']
     ws.append(header)
     for col_idx, cell in enumerate(ws[2], start=1):
         _style_header_cell(cell)
@@ -170,8 +185,9 @@ def _build_scores_sheet(ws, charts, chart_reviews, reviewers, title_suffix):
     for data_row_idx, chart in enumerate(charts, start=1):
         rv = chart_reviews[chart.id]
         scores = [rv[u]['score'] if u in rv else None for u in reviewers]
+        trimmed = _trimmed_mean(scores)
         fav_count = sum(1 for u in rv.values() if u['favorite'])
-        row = _meta_row_data(chart) + scores + [fav_count]
+        row = _meta_row_data(chart) + scores + [trimmed, fav_count]
         ws.append(row)
         # 隔行底色
         if data_row_idx % 2 == 0:
@@ -179,7 +195,7 @@ def _build_scores_sheet(ws, charts, chart_reviews, reviewers, title_suffix):
                 cell.fill = _FILL_ROW_EVEN
 
     # 列宽
-    col_widths = [8, 28, 20] + [12] * len(reviewers) + [10]
+    col_widths = [8, 28, 20] + [12] * len(reviewers) + [12, 10]
     _set_col_widths(ws, col_widths)
 
     # 冻结前两行和前三列
@@ -197,7 +213,7 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
       行4+：数据
     """
     n_rv = len(reviewers)
-    total_cols = _N_META + n_rv * 2 + 1   # 每人占2列 + 真爱票数
+    total_cols = _N_META + n_rv * 2 + 2   # 每人占2列 + 去高低均分 + 真爱票数
 
     # 标题行
     _style_title_row(ws, 1, total_cols, f'互评评分与评语表{title_suffix}')
@@ -217,8 +233,15 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
                        end_row=2,   end_column=col_end)
         cell = ws.cell(row=2, column=col_start, value=uname)
         _style_header_cell(cell)
-    # 真爱票数列头（第2行）
-    fav_col = _N_META + n_rv * 2 + 1
+    # 去高低均分列头（跨行2-3合并）
+    trimmed_col = _N_META + n_rv * 2 + 1
+    ws.merge_cells(start_row=2, start_column=trimmed_col,
+                   end_row=3,   end_column=trimmed_col)
+    cell = ws.cell(row=2, column=trimmed_col, value='去高低均分')
+    _style_header_cell(cell)
+
+    # 真爱票数列头（跨行2-3合并）
+    fav_col = _N_META + n_rv * 2 + 2
     ws.merge_cells(start_row=2, start_column=fav_col,
                    end_row=3,   end_column=fav_col)
     cell = ws.cell(row=2, column=fav_col, value='真爱票数')
@@ -229,7 +252,7 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
     subheader = [''] * _N_META
     for _ in reviewers:
         subheader += ['评分', '评语']
-    subheader.append('')   # 真爱票数已合并
+    subheader += ['', '']   # 去高低均分和真爱票数已合并
     ws.append(subheader)
     for col_idx, cell in enumerate(ws[3], start=1):
         if cell.value:
@@ -248,8 +271,10 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
                 interleaved.append(rv[uname]['comment'] or '')
             else:
                 interleaved += [None, None]
+        scores_only = [rv[u]['score'] if u in rv else None for u in reviewers]
+        trimmed = _trimmed_mean(scores_only)
         fav_count = sum(1 for u in rv.values() if u['favorite'])
-        row = _meta_row_data(chart) + interleaved + [fav_count]
+        row = _meta_row_data(chart) + interleaved + [trimmed, fav_count]
         ws.append(row)
         if data_row_idx % 2 == 0:
             for cell in ws[3 + data_row_idx]:
@@ -259,6 +284,7 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
     col_widths = [8, 28, 20]
     for _ in reviewers:
         col_widths += [10, 32]
+    col_widths += [12]  # 去高低均分
     col_widths += [10]
     _set_col_widths(ws, col_widths)
 

@@ -66,7 +66,8 @@ class TestExportEmpty(TestCase):
         self.assertEqual(ws.cell(2, 1).value, '谱面ID')
         self.assertEqual(ws.cell(2, 2).value, '歌曲名')
         self.assertEqual(ws.cell(2, 3).value, '谱师名')
-        self.assertEqual(ws.cell(2, 4).value, '真爱票数')
+        self.assertEqual(ws.cell(2, 4).value, '去高低均分')
+        self.assertEqual(ws.cell(2, 5).value, '真爱票数')
 
     def test_part_submitted_excluded(self):
         r = make_round()
@@ -116,22 +117,24 @@ class TestExportSingleChart(TestCase):
 
     def test_scores_sheet_column_headers(self):
         ws = ws1(export_peer_review_scores())
-        # 行2：谱面ID | 歌曲名 | 谱师名 | rv_alice | rv_bob | rv_carol | 真爱票数
+        # 行2：谱面ID | 歌曲名 | 谱师名 | rv_alice | rv_bob | rv_carol | 去高低均分 | 真爱票数
         self.assertEqual(ws.cell(2, 4).value, 'rv_alice')
         self.assertEqual(ws.cell(2, 5).value, 'rv_bob')
         self.assertEqual(ws.cell(2, 6).value, 'rv_carol')
-        self.assertEqual(ws.cell(2, 7).value, '真爱票数')
+        self.assertEqual(ws.cell(2, 7).value, '去高低均分')
+        self.assertEqual(ws.cell(2, 8).value, '真爱票数')
 
     def test_scores_sheet_data(self):
         ws = ws1(export_peer_review_scores())
-        row = [ws.cell(3, c).value for c in range(1, 8)]
+        row = [ws.cell(3, c).value for c in range(1, 9)]
         self.assertEqual(row[0], self.chart.id)
         self.assertEqual(row[1], 'MySong')
         self.assertEqual(row[2], 'DesignerAlias')
-        self.assertEqual(row[3], 40)   # rv_alice
-        self.assertEqual(row[4], 35)   # rv_bob
-        self.assertEqual(row[5], 45)   # rv_carol
-        self.assertEqual(row[6], 2)    # 真爱票数
+        self.assertEqual(row[3], 40)    # rv_alice
+        self.assertEqual(row[4], 35)    # rv_bob
+        self.assertEqual(row[5], 45)    # rv_carol
+        self.assertEqual(row[6], 40.0)  # 去高低均分：去掉35和45，剩40
+        self.assertEqual(row[7], 2)     # 真爱票数
 
     # --- 评分与评语表 ---
 
@@ -153,7 +156,7 @@ class TestExportSingleChart(TestCase):
     def test_comments_sheet_data(self):
         ws = ws2(export_peer_review_scores())
         # 行4：数据
-        row = [ws.cell(4, c).value for c in range(1, 12)]
+        row = [ws.cell(4, c).value for c in range(1, 13)]
         self.assertEqual(row[0], self.chart.id)
         self.assertEqual(row[1], 'MySong')
         self.assertEqual(row[2], 'DesignerAlias')
@@ -166,8 +169,10 @@ class TestExportSingleChart(TestCase):
         # rv_carol: col8, col9
         self.assertEqual(row[7], 45)
         self.assertEqual(row[8], 'excellent')
-        # 真爱票数: col10
-        self.assertEqual(row[9], 2)
+        # 去高低均分: col10
+        self.assertEqual(row[9], 40.0)
+        # 真爱票数: col11
+        self.assertEqual(row[10], 2)
 
     # --- 轮次过滤 ---
 
@@ -265,7 +270,7 @@ class TestExportFavoriteCount(TestCase):
         make_review(u1, c, 50, favorite=True)
 
         ws = ws1(export_peer_review_scores())
-        fav_col = 3 + 3 + 1   # 3 meta + 3 reviewers + 1 fav = col 7
+        fav_col = 3 + 3 + 1 + 1   # 3 meta + 3 reviewers + 1 去高低均分 + 1 fav = col 8
         self.assertEqual(ws.cell(3, fav_col).value, 2)
 
     def test_no_favorites(self):
@@ -277,5 +282,5 @@ class TestExportFavoriteCount(TestCase):
         make_review(u2, c, 30, favorite=False)
 
         ws = ws1(export_peer_review_scores())
-        fav_col = 3 + 1 + 1   # 3 meta + 1 reviewer + 1 fav = col 5
+        fav_col = 3 + 1 + 1 + 1   # 3 meta + 1 reviewer + 1 去高低均分 + 1 fav = col 6
         self.assertEqual(ws.cell(3, fav_col).value, 0)
