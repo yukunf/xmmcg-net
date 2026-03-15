@@ -124,7 +124,7 @@ class BiddingRoundAdmin(admin.ModelAdmin):
     list_filter = ('bidding_type', 'status', 'created_at', 'competition_phase', 'bidding_type')
     ordering = ('-created_at',)
     search_fields = ('name',)
-    actions = ['allocate_bids_action', 'auto_create_chart_round_action', 'allocate_peer_reviews_action']
+    actions = ['allocate_bids_action', 'auto_create_chart_round_action', 'allocate_peer_reviews_action', 'export_peer_review_scores_action']
     
     def available_targets_count(self, obj):
         """显示该轮次的可用目标数量"""
@@ -305,6 +305,38 @@ class BiddingRoundAdmin(admin.ModelAdmin):
                 level=messages.WARNING
             )
     
+    @admin.action(description='导出选中轮次的互评评分汇总（xlsx）')
+    def export_peer_review_scores_action(self, request, queryset):
+        """
+        将选中竞标轮次的互评评分导出为 xlsx 文件，直接触发浏览器下载。
+        返回 HttpResponse 时 Django 不会重定向，而是直接发送文件给浏览器。
+        """
+        from django.contrib import messages
+        from django.http import HttpResponse
+
+        from .exports import export_peer_review_scores
+
+        selected_ids = list(queryset.values_list('id', flat=True))
+        try:
+            xlsx_bytes = export_peer_review_scores(bidding_round_ids=selected_ids)
+        except Exception as e:
+            self.message_user(request, f'导出失败: {e}', level=messages.ERROR)
+            return
+
+        if queryset.count() == 1:
+            round_obj = queryset.first()
+            safe_name = round_obj.name.replace('/', '_').replace(' ', '_')
+            filename = f'peer_review_scores_{safe_name}.xlsx'
+        else:
+            filename = f'peer_review_scores_rounds_{"_".join(str(i) for i in selected_ids)}.xlsx'
+
+        response = HttpResponse(
+            content=xlsx_bytes,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
     readonly_fields = ('created_at', 'available_targets_count')
     
     fieldsets = (
