@@ -50,7 +50,11 @@ def export_peer_review_scores(bidding_round_id=None, bidding_round_ids=None) -> 
     # 1. 查询完稿谱面（final_submitted = 已完稿待评，under_review/reviewed = 评分中/已评分）
     charts_qs = (
         Chart.objects
-        .select_related('song', 'bidding_round')
+        .select_related(
+            'song', 'bidding_round',
+            'user', 'user__profile',
+            'part_one_chart', 'part_one_chart__user', 'part_one_chart__user__profile',
+        )
         .filter(status__in=['final_submitted', 'under_review', 'reviewed'])
         .order_by('id')
     )
@@ -119,7 +123,7 @@ def export_peer_review_scores(bidding_round_id=None, bidding_round_ids=None) -> 
 # 内部辅助
 # ---------------------------------------------------------------------------
 
-_META_COLS = ['谱面ID', '歌曲名', '谱师名']   # 固定的左侧列
+_META_COLS = ['谱面ID', '歌曲名', '第一阶段谱师', '第二阶段谱师']  # 固定的左侧列
 _N_META = len(_META_COLS)
 
 
@@ -142,8 +146,42 @@ def _style_header_cell(cell, fill=None):
     cell.alignment = _ALIGN_CENTER
 
 
+def _preferred_name(user, fallback: str) -> str:
+    """优先返回 UserProfile.preferred_name，不存在时用 fallback。"""
+    try:
+        pn = user.profile.preferred_name
+        if pn:
+            return pn
+    except Exception:
+        pass
+    return fallback
+
+
+def _trimmed_mean(scores: list) -> float | None:
+    """去掉最高分和最低分后的平均值（各去一个）。
+    - n >= 3：去一高一低后平均，保留两位小数
+    - n == 2：直接平均两分
+    - n <= 1：原值或 None
+    """
+    valid = [s for s in scores if s is not None]
+    if not valid:
+        return None
+    if len(valid) <= 2:
+        return round(sum(valid) / len(valid), 2)
+    trimmed = sorted(valid)[1:-1]
+    return round(sum(trimmed) / len(trimmed), 2)
+
+
 def _meta_row_data(chart) -> list:
-    return [chart.id, chart.song.title, chart.designer]
+    # 第二阶段谱师：preferred_name 优先，否则 username
+    p2_name = _preferred_name(chart.user, chart.user.username)
+    # 第一阶段谱师：通过 part_one_chart 取；若无（本身已是一阶段）则沿用二阶段谱师
+    if chart.part_one_chart:
+        p1 = chart.part_one_chart
+        p1_name = _preferred_name(p1.user, p1.user.username)
+    else:
+        p1_name = p2_name
+    return [chart.id, chart.song.title, p1_name, p2_name]
 
 
 # --- Sheet 1：纯评分 ---
@@ -155,13 +193,13 @@ def _build_scores_sheet(ws, charts, chart_reviews, reviewers, title_suffix):
       行2：谱面ID | 歌曲名 | 谱师名 | reviewer1 | reviewer2 | … | 真爱票数
       行3+：数据
     """
-    total_cols = _N_META + len(reviewers) + 1   # +1 真爱票数
+    total_cols = _N_META + len(reviewers) + 2   # +1 去高低均分 +1 真爱票数
 
     # 标题行
     _style_title_row(ws, 1, total_cols, f'互评评分表{title_suffix}')
 
     # 列头行
-    header = _META_COLS + reviewers + ['真爱票数']
+    header = _META_COLS + reviewers + ['去高低均分', '真爱票数']
     ws.append(header)
     for col_idx, cell in enumerate(ws[2], start=1):
         _style_header_cell(cell)
@@ -170,8 +208,9 @@ def _build_scores_sheet(ws, charts, chart_reviews, reviewers, title_suffix):
     for data_row_idx, chart in enumerate(charts, start=1):
         rv = chart_reviews[chart.id]
         scores = [rv[u]['score'] if u in rv else None for u in reviewers]
+        trimmed = _trimmed_mean(scores)
         fav_count = sum(1 for u in rv.values() if u['favorite'])
-        row = _meta_row_data(chart) + scores + [fav_count]
+        row = _meta_row_data(chart) + scores + [trimmed, fav_count]
         ws.append(row)
         # 隔行底色
         if data_row_idx % 2 == 0:
@@ -179,7 +218,7 @@ def _build_scores_sheet(ws, charts, chart_reviews, reviewers, title_suffix):
                 cell.fill = _FILL_ROW_EVEN
 
     # 列宽
-    col_widths = [8, 28, 20] + [12] * len(reviewers) + [10]
+    col_widths = [8, 28, 16, 16] + [12] * len(reviewers) + [12, 10]
     _set_col_widths(ws, col_widths)
 
     # 冻结前两行和前三列
@@ -197,13 +236,12 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
       行4+：数据
     """
     n_rv = len(reviewers)
-    total_cols = _N_META + n_rv * 2 + 1   # 每人占2列 + 真爱票数
+    total_cols = _N_META + n_rv * 2 + 2   # 每人占2列 + 去高低均分 + 真爱票数
 
     # 标题行
     _style_title_row(ws, 1, total_cols, f'互评评分与评语表{title_suffix}')
 
     # 第2行：合并每位评分人的双列，写入用户名
-    row2_cells = _META_COLS[:]   # 先占位，后面用 merge 写
     ws.append([''] * total_cols)   # 占一行
     # 固定元信息列表头
     for col_idx, label in enumerate(_META_COLS, start=1):
@@ -217,8 +255,14 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
                        end_row=2,   end_column=col_end)
         cell = ws.cell(row=2, column=col_start, value=uname)
         _style_header_cell(cell)
-    # 真爱票数列头（第2行）
-    fav_col = _N_META + n_rv * 2 + 1
+    # 去高低均分列头（跨行2-3合并）
+    trimmed_col = _N_META + n_rv * 2 + 1
+    ws.merge_cells(start_row=2, start_column=trimmed_col,
+                   end_row=3,   end_column=trimmed_col)
+    cell = ws.cell(row=2, column=trimmed_col, value='去高低均分')
+    _style_header_cell(cell)
+    # 真爱票数列头（跨行2-3合并）
+    fav_col = _N_META + n_rv * 2 + 2
     ws.merge_cells(start_row=2, start_column=fav_col,
                    end_row=3,   end_column=fav_col)
     cell = ws.cell(row=2, column=fav_col, value='真爱票数')
@@ -229,7 +273,7 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
     subheader = [''] * _N_META
     for _ in reviewers:
         subheader += ['评分', '评语']
-    subheader.append('')   # 真爱票数已合并
+    subheader += ['', '']   # 去高低均分和真爱票数已合并
     ws.append(subheader)
     for col_idx, cell in enumerate(ws[3], start=1):
         if cell.value:
@@ -248,18 +292,20 @@ def _build_scores_comments_sheet(ws, charts, chart_reviews, reviewers, title_suf
                 interleaved.append(rv[uname]['comment'] or '')
             else:
                 interleaved += [None, None]
+        scores_only = [rv[u]['score'] if u in rv else None for u in reviewers]
+        trimmed = _trimmed_mean(scores_only)
         fav_count = sum(1 for u in rv.values() if u['favorite'])
-        row = _meta_row_data(chart) + interleaved + [fav_count]
+        row = _meta_row_data(chart) + interleaved + [trimmed, fav_count]
         ws.append(row)
         if data_row_idx % 2 == 0:
             for cell in ws[3 + data_row_idx]:
                 cell.fill = _FILL_ROW_EVEN
 
     # 列宽
-    col_widths = [8, 28, 20]
+    col_widths = [8, 28, 16, 16]
     for _ in reviewers:
         col_widths += [10, 32]
-    col_widths += [10]
+    col_widths += [12, 10]
     _set_col_widths(ws, col_widths)
 
     # 冻结前3行和前3列
