@@ -149,6 +149,12 @@ export const getUserProfile = async () => {
   }
 }
 
+export const updateUserProfile = async (data) => {
+  await ensureCsrfToken()
+  const response = await api.patch('/users/profile/', data)
+  return response
+}
+
 
 
 /**
