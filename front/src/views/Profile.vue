@@ -26,7 +26,28 @@
             <el-descriptions-item label="QQ号">
               {{ userInfo.qqid || 'N/A' }}
             </el-descriptions-item>
+            <el-descriptions-item label="谱师名义">
+              {{ userInfo.preferred_name || '（未设置）' }}
+              <el-button link size="small" style="margin-left: 8px;" @click="openEditDialog">编辑</el-button>
+            </el-descriptions-item>
           </el-descriptions>
+
+          <el-dialog v-model="editDialogVisible" title="修改谱师名义" width="400px">
+            <el-form>
+              <el-form-item label="谱师名义">
+                <el-input
+                  v-model="editForm.preferred_name"
+                  maxlength="50"
+                  show-word-limit
+                  placeholder="留空则不展示"
+                />
+              </el-form-item>
+            </el-form>
+            <template #footer>
+              <el-button @click="editDialogVisible = false">取消</el-button>
+              <el-button type="primary" :loading="editLoading" @click="savePreferredName">保存</el-button>
+            </template>
+          </el-dialog>
 
           <el-divider />
 
@@ -70,19 +91,43 @@ import { ref, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { User, Headset, Document, SwitchButton } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getUserProfile } from '../api'
+import { getUserProfile, updateUserProfile } from '../api'
 
 const router = useRouter()
 
 const userInfo = ref({
   username: localStorage.getItem('username') || '未知用户',
   qqid: null,
+  preferred_name: '',
   email: null,
   date_joined: null,
   token: 0,
   songsCount: 0,
   chartsCount: 0
 })
+
+const editDialogVisible = ref(false)
+const editLoading = ref(false)
+const editForm = ref({ preferred_name: '' })
+
+const openEditDialog = () => {
+  editForm.value.preferred_name = userInfo.value.preferred_name || ''
+  editDialogVisible.value = true
+}
+
+const savePreferredName = async () => {
+  editLoading.value = true
+  try {
+    await updateUserProfile({ preferred_name: editForm.value.preferred_name })
+    userInfo.value.preferred_name = editForm.value.preferred_name
+    editDialogVisible.value = false
+    ElMessage.success('谱师名义已更新')
+  } catch {
+    ElMessage.error('保存失败，请重试')
+  } finally {
+    editLoading.value = false
+  }
+}
 
 const fetchUserProfile = async () => {
   try {
