@@ -81,11 +81,13 @@ class UserDetailSerializer(serializers.ModelSerializer):
     songsCount = serializers.SerializerMethodField()
     chartsCount = serializers.SerializerMethodField()
     qqid = serializers.CharField(source='profile.qqid', read_only=True)
+    preferred_name = serializers.CharField(source='profile.preferred_name', allow_blank=True, required=False)
+
     class Meta:
         model = User
-        fields = ('username', 'qqid', 'email', 'is_active', 'date_joined', 'token', 'songsCount', 'chartsCount')
+        fields = ('username', 'qqid', 'email', 'is_active', 'date_joined', 'token', 'songsCount', 'chartsCount', 'preferred_name')
         read_only_fields = ('username', 'date_joined', 'token', 'songsCount', 'chartsCount')
-    
+
     def get_token(self, obj):
         """获取用户代币，如果没有 profile 则创建一个"""
         try:
@@ -95,14 +97,26 @@ class UserDetailSerializer(serializers.ModelSerializer):
             from .models import UserProfile
             profile, created = UserProfile.objects.get_or_create(user=obj)
             return profile.token
-    
+
     def get_songsCount(self, obj):
         """获取用户上传的歌曲数量"""
         return obj.songs.count()
-    
+
     def get_chartsCount(self, obj):
         """获取用户上传的谱面数量"""
         return obj.charts.count() if hasattr(obj, 'charts') else 0
+
+    def update(self, instance, validated_data):
+        profile_data = validated_data.pop('profile', {})
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if profile_data:
+            profile = instance.profile
+            for attr, value in profile_data.items():
+                setattr(profile, attr, value)
+            profile.save()
+        return instance
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -138,16 +152,17 @@ class UpdateTokenSerializer(serializers.Serializer):
 class UserPublicSerializer(serializers.ModelSerializer):
     """
     专门用于公开展示的用户信息
-    只包含：ID、用户名、QQ号、作品统计
+    只包含：ID、用户名、QQ号、谱师名义、作品统计
     ❌ 绝对不包含：Token(余额)、Email、密码等
     """
     qqid = serializers.CharField(source='profile.qqid', read_only=True)
+    preferred_name = serializers.CharField(source='profile.preferred_name', read_only=True)
     songsCount = serializers.SerializerMethodField()
     chartsCount = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'qqid', 'songsCount', 'chartsCount')
+        fields = ('id', 'username', 'qqid', 'preferred_name', 'songsCount', 'chartsCount')
 
     # 复用你之前的统计逻辑
     def get_songsCount(self, obj):

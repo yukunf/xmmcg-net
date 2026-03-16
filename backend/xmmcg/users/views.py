@@ -132,7 +132,7 @@ def update_profile(request):
     user = request.user
     
     # 只允许修改 email
-    allowed_fields = {'email'}
+    allowed_fields = {'email', 'preferred_name'}
     provided_fields = set(request.data.keys())
     invalid_fields = provided_fields - allowed_fields
     

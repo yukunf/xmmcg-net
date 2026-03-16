@@ -8,6 +8,7 @@ class UserProfile(models.Model):
     """用户扩展信息模型"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     qqid = models.CharField(max_length=20, unique=True, null=True, blank=True, help_text='用户QQ号')
+    preferred_name = models.CharField(max_length=50, blank=True, default='', help_text='谱师名义（展示用名称）')
     token = models.IntegerField(default=DEFAULT_USER_TOKENS, help_text='用户虚拟货币余额')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
